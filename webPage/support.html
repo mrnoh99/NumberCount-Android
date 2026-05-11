@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>숫자세기 (Number Count) - Support</title>
+  <meta name="description" content="숫자세기(Number Count) 앱 지원 페이지입니다. 문의 방법, 자주 묻는 질문, 개인정보 처리방침 링크를 제공합니다.">
+  <style>
+    :root {
+      --bg: #fff7ed;
+      --card: #ffffff;
+      --text: #1f2937;
+      --muted: #5f6470;
+      --accent: #f97316;
+      --accent-dark: #c2410c;
+      --line: #fed7aa;
+      --soft: #ffedd5;
+      --radius: 24px;
+      --shadow: 0 20px 50px rgba(154, 52, 18, 0.12);
+    }
+
+    *,
+    *::before,
+    *::after {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Noto Sans KR", Arial, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.65;
+    }
+
+    a {
+      color: var(--accent-dark);
+      font-weight: 700;
+      text-decoration: none;
+    }
+
+    a:hover {
+      text-decoration: underline;
+    }
+
+    .wrap {
+      max-width: 860px;
+      margin: 0 auto;
+      padding: 32px 20px 56px;
+    }
+
+    .card {
+      background: var(--card);
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      padding: 30px;
+      box-shadow: var(--shadow);
+    }
+
+    .badge {
+      display: inline-block;
+      margin: 0 0 14px;
+      padding: 6px 12px;
+      border-radius: 999px;
+      background: var(--soft);
+      color: var(--accent-dark);
+      font-size: 0.82rem;
+      font-weight: 800;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+    }
+
+    h1 {
+      margin: 0;
+      font-size: clamp(2rem, 7vw, 3.4rem);
+      line-height: 1.05;
+      letter-spacing: -0.04em;
+    }
+
+    h2 {
+      margin: 30px 0 10px;
+      font-size: 1.3rem;
+    }
+
+    h3 {
+      margin: 22px 0 8px;
+      font-size: 1.05rem;
+    }
+
+    p,
+    li {
+      color: var(--muted);
+    }
+
+    p {
+      margin: 10px 0 0;
+    }
+
+    ul {
+      margin: 0;
+      padding-left: 1.2rem;
+    }
+
+    li {
+      margin: 7px 0;
+    }
+
+    nav {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      margin: 24px 0;
+    }
+
+    nav a,
+    .button {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 44px;
+      padding: 10px 16px;
+      border-radius: 999px;
+      background: #ffffff;
+      border: 1px solid var(--line);
+      box-shadow: 0 8px 20px rgba(154, 52, 18, 0.08);
+    }
+
+    .info {
+      margin-top: 22px;
+      padding: 16px;
+      border-radius: 18px;
+      background: #fff7ed;
+      border: 1px solid var(--line);
+    }
+
+    code {
+      overflow-wrap: anywhere;
+      color: var(--accent-dark);
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+      font-size: 0.92rem;
+    }
+
+    footer {
+      margin-top: 28px;
+      color: var(--muted);
+      font-size: 0.92rem;
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <main class="card">
+      <p class="badge">Support</p>
+      <h1>숫자세기 지원<br><span lang="en">Number Count Support</span></h1>
+      <p>앱 사용 중 문제가 있거나 개선 의견이 있으면 아래 방법으로 문의해 주세요.</p>
+
+      <nav aria-label="Site navigation">
+        <a href="index.html">Marketing</a>
+        <a href="support.html" aria-current="page">Support</a>
+        <a href="privacy.html">Privacy Statement</a>
+      </nav>
+
+      <section class="info">
+        <strong>Support URL</strong>
+        <p><code>https://mrnoh99.github.io/coungNumber/support.html</code></p>
+      </section>
+
+      <h2>문의 방법 / Contact</h2>
+      <p>버그 제보, 기능 제안, 일반 문의는 GitHub Issues에 남겨 주세요. 가능하면 앱 버전, 기기 모델, iOS/iPadOS 버전, 재현 방법을 함께 적어 주세요.</p>
+      <p>For bug reports, feature requests, or general questions, please open a GitHub Issue and include your app version, device model, OS version, and steps to reproduce.</p>
+      <p><a class="button" href="https://github.com/mrnoh99/coungNumber/issues">Open GitHub Issues</a></p>
+
+      <h2>자주 묻는 질문 / FAQ</h2>
+      <h3>마이크 권한은 왜 필요한가요?</h3>
+      <p>마이크는 설정 화면에서 정답·오답 안내 음성을 직접 녹음할 때만 사용됩니다. 녹음을 사용하지 않으면 마이크 권한 없이도 기본 음성 안내(TTS)를 사용할 수 있습니다.</p>
+
+      <h3>Why does the app ask for microphone permission?</h3>
+      <p>The microphone is used only when you choose to record custom correct or incorrect answer feedback. If you do not use recording, the app can still use built-in text-to-speech guidance.</p>
+
+      <h3>소리가 들리지 않아요.</h3>
+      <p>기기의 미디어 음량, 무음 모드, 앱의 배경 음악 설정을 확인해 주세요. 배경 음악을 꺼도 정답·오답 음성 안내는 계속 사용할 수 있습니다.</p>
+
+      <h3>No sound is playing.</h3>
+      <p>Please check your media volume, silent mode, and the background music setting in the app. Spoken answer feedback can still play when background music is turned off.</p>
+
+      <h2>관련 링크 / Related Links</h2>
+      <ul>
+        <li><a href="index.html">Marketing page</a></li>
+        <li><a href="privacy.html">Privacy Statement</a></li>
+        <li><a href="https://github.com/mrnoh99/coungNumber">GitHub repository</a></li>
+      </ul>
+
+      <footer>© Number Count · Bundle ID <code>njs.NumberCount</code></footer>
+    </main>
+  </div>
+</body>
+</html>
