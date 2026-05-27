@@ -28,8 +28,6 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Text
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -43,6 +41,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.numbercount.AppLanguage
@@ -540,7 +539,9 @@ private fun TargetPanel(
                 text = gameTargetNumber.toString(),
                 color = color,
                 fontSize = numberFont,
-                fontWeight = FontWeight.Black
+                fontWeight = FontWeight.Black,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.fillMaxWidth(),
             )
         } else {
             AnswerCardView(
@@ -716,37 +717,31 @@ private fun RowScope.OptionCardView(
         else -> Color.White
     }
 
+    val numberFont = when {
+        height >= 200.dp -> 96.sp
+        height >= 160.dp -> 84.sp
+        height >= 130.dp -> 66.sp
+        else -> 54.sp
+    }
+
     Box(
         modifier = Modifier
             .weight(1f)
             .height(height)
             .offset(x = if (shaking) 8.dp else 0.dp)
             .background(bg, RoundedCornerShape(22.dp))
-            .clickable { onClick() }
-            .padding(8.dp),
-        contentAlignment = Alignment.Center
+            .clickable { onClick() },
+        contentAlignment = Alignment.Center,
     ) {
-        val numberFont = when {
-            height >= 200.dp -> 96.sp
-            height >= 160.dp -> 84.sp
-            height >= 130.dp -> 66.sp
-            else -> 54.sp
-        }
-        Card(
-            shape = RoundedCornerShape(18.dp),
-            colors = CardDefaults.cardColors(containerColor = Color.Transparent),
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(2.dp)
-        ) {
-            Text(
-                text = value.toString(),
-                fontSize = numberFont,
-                color = color,
-                fontWeight = FontWeight.Black,
-                modifier = Modifier.padding(vertical = 12.dp)
-            )
-        }
+        Text(
+            text = value.toString(),
+            fontSize = numberFont,
+            color = color,
+            fontWeight = FontWeight.Black,
+            textAlign = TextAlign.Center,
+            modifier = Modifier.fillMaxWidth(),
+            maxLines = 1,
+        )
     }
 }
 
