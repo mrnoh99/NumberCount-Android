@@ -1,0 +1,5 @@
+<resources>
+    <string name="app_name">NumberCount</string>
+    <string name="record_audio_permission_rationale">Recording audio is needed for your custom feedback sounds.</string>
+</resources>
+
