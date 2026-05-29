@@ -1,10 +1,19 @@
 package com.example.numbercount.ui
 
 import android.Manifest
+import android.app.Application
 import android.content.Context
 import android.content.pm.PackageManager
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
+import androidx.lifecycle.ViewModelProvider
+import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -14,13 +23,23 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.offset
+import androidx.compose.foundation.layout.navigationBars
+import androidx.compose.foundation.layout.statusBars
+import androidx.compose.foundation.layout.systemBars
+import androidx.compose.foundation.layout.windowInsetsBottomHeight
+import androidx.compose.foundation.layout.windowInsetsTopHeight
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.WindowInsetsSides
+import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.safeDrawingPadding
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
@@ -28,7 +47,7 @@ import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Text
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -38,13 +57,16 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.scale
 import androidx.compose.ui.draw.shadow
 import androidx.compose.foundation.border
 import androidx.compose.foundation.shape.CircleShape
@@ -52,20 +74,15 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.Icon
+import com.example.numbercount.AppAudioViewModel
+import com.example.numbercount.GameViewModel
 import com.example.numbercount.numColors
 import com.example.numbercount.AppLanguage
-import com.example.numbercount.GameState
 import com.example.numbercount.ItemCategory
 import com.example.numbercount.QuizMode
 import com.example.numbercount.Theme
 import com.example.numbercount.ThemeCatalog
 import com.example.numbercount.ui.SettingsScreen
-import com.example.numbercount.audio.AudioController
-import com.example.numbercount.audio.FeedbackKind
-import com.example.numbercount.audio.FeedbackRecorder
-import kotlinx.coroutines.Job
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.launch
 import kotlin.math.min
 import kotlin.random.Random
 
@@ -93,8 +110,17 @@ fun NumberCountApp(context: Context) {
     val appLanguage = AppLanguage.fromRaw(appLanguageRaw)
     val selectedCategories = ItemCategory.fromStorage(themeCategoriesStorage)
 
-    val audioController = remember { AudioController(context, prefs) }
-    val feedbackRecorder = remember { FeedbackRecorder(context, audioController) }
+    val audioViewModel: AppAudioViewModel = viewModel(
+        factory = ViewModelProvider.AndroidViewModelFactory.getInstance(
+            context.applicationContext as Application
+        )
+    )
+    val audioController = audioViewModel.audioController
+    val feedbackRecorder = audioViewModel.feedbackRecorder
+
+    val gameViewModel: GameViewModel = viewModel(
+        factory = GameViewModel.factory(audioController, feedbackRecorder)
+    )
 
     // Permission for hold-to-record
     val initialPermissionGranted =
@@ -108,202 +134,26 @@ fun NumberCountApp(context: Context) {
     var showSettings by remember { mutableStateOf(false) }
     val sheetState = rememberModalBottomSheetState()
 
-    // Main quiz state (MVP)
-    var maxNumber by remember { mutableStateOf(5) }
-    var quizMode by remember { mutableStateOf(QuizMode.OBJECTS_TO_NUMBER) }
-
-    var selectedOption by remember { mutableStateOf<Int?>(null) }
-    var isCorrect by remember { mutableStateOf<Boolean?>(null) }
-    var locked by remember { mutableStateOf(false) }
-    var wrongIndex by remember { mutableStateOf<Int?>(null) }
-    var shaking by remember { mutableStateOf(false) }
-
-    var showCelebration by remember { mutableStateOf(false) }
-
-    var showingCountHint by remember { mutableStateOf(false) }
-    var highlightedCount by remember { mutableStateOf(0) }
-    var hintWord by remember { mutableStateOf("") }
-
-    var guidanceJob by remember { mutableStateOf<Job?>(null) }
-
-    fun themePoolForRound(): List<Theme> = ThemeCatalog.pool(selectedCategories)
-
-    var game by remember {
-        mutableStateOf(
-            GameState.newRound(
-                score = 0,
-                prev = null,
-                maxNumber = maxNumber,
-                mode = quizMode,
-                themePool = themePoolForRound()
-            )
+    SideEffect {
+        gameViewModel.updateSettings(
+            themeCategoriesStorage = themeCategoriesStorage,
+            appLanguageRaw = appLanguageRaw,
+            categories = selectedCategories,
         )
     }
 
-    fun koreanNumberWord(number: Int): String {
-        val native = listOf("", "일", "이", "삼", "사", "오", "육", "칠", "팔", "구", "십")
-        if (number < 1) return number.toString()
-        return when {
-            number < native.size -> native[number]
-            number < 20 -> "십" + if (number == 10) "" else native[number % 10]
-            else -> number.toString()
-        }
-    }
-
-    fun englishNumberWord(number: Int): String {
-        val words = listOf(
-            "zero", "one", "two", "three", "four", "five",
-            "six", "seven", "eight", "nine", "ten",
-            "eleven", "twelve", "thirteen", "fourteen", "fifteen",
-            "sixteen", "seventeen", "eighteen", "nineteen", "twenty"
-        )
-        return words.getOrNull(number) ?: number.toString()
-    }
-
-    fun feedbackCorrectPhrase(language: AppLanguage): String =
-        if (language == AppLanguage.KOREAN) "그래 잘했다!" else "That's right!"
-
-    fun feedbackWrongPhrase(language: AppLanguage): String =
-        if (language == AppLanguage.KOREAN) "틀렸어요." else "Not quite."
-
-    fun voiceRate(language: AppLanguage): Float =
-        if (language == AppLanguage.KOREAN) 0.8f else 0.85f
-
-    fun nextRound(prev: Int? = null) {
-        guidanceJob?.cancel()
-        guidanceJob = null
-
-        selectedOption = null
-        isCorrect = null
-        locked = false
-        wrongIndex = null
-        shaking = false
-        showCelebration = false
-        showingCountHint = false
-        highlightedCount = 0
-        hintWord = ""
-
-        game = GameState.newRound(
-            score = game.score,
-            prev = prev,
-            maxNumber = maxNumber,
-            mode = quizMode,
-            themePool = themePoolForRound()
-        )
-    }
-
-    fun playAnswerFeedback(kind: FeedbackKind) {
-        val phrase = when (kind) {
-            FeedbackKind.CORRECT -> feedbackCorrectPhrase(appLanguage)
-            FeedbackKind.WRONG -> feedbackWrongPhrase(appLanguage)
-        }
-
-        if (feedbackRecorder.hasRecording(kind, appLanguage)) {
-            feedbackRecorder.play(kind, appLanguage) { }
-        } else {
-            scope.launch {
-                audioController.speakBlocking(text = phrase, language = appLanguage, rate = voiceRate(appLanguage))
-            }
-        }
-    }
-
-    suspend fun startCountHint(fromWrongAnswerFlow: Boolean) {
-        showingCountHint = true
-        highlightedCount = 0
-        hintWord = ""
-
-        val total = game.targetNumber
-        val leadMs = if (fromWrongAnswerFlow) 480L else 280L
-        delay(leadMs)
-
-        audioController.pauseBgm()
-
-        for (n in 1..total) {
-            val spoken = if (appLanguage == AppLanguage.ENGLISH) englishNumberWord(n) else koreanNumberWord(n)
-            val display = if (appLanguage == AppLanguage.ENGLISH) spoken.uppercase() else n.toString()
-            highlightedCount = n
-            hintWord = display
-
-            audioController.speakBlocking(text = spoken, language = appLanguage, rate = voiceRate(appLanguage))
-            delay(1100L)
-        }
-
-        val finalLabel = if (appLanguage == AppLanguage.ENGLISH) game.theme.itemWordSingular else game.theme.itemWordSingularKO
-        hintWord = if (appLanguage == AppLanguage.ENGLISH) finalLabel.uppercase() else finalLabel
-        audioController.speakBlocking(text = finalLabel, language = appLanguage, rate = voiceRate(appLanguage))
-
-        delay(1150L)
-
-        showingCountHint = false
-        highlightedCount = 0
-        hintWord = ""
-        selectedOption = null
-        isCorrect = null
-        wrongIndex = null
-        locked = false
-
-        audioController.resumeBgm()
-    }
-
-    fun onQuestionPanelTapped() {
-        if (showCelebration) return
-        if (showingCountHint) return
-        if (selectedOption != null) return
-        if (locked) return
-        locked = true
-        guidanceJob?.cancel()
-        guidanceJob = scope.launch {
-            startCountHint(fromWrongAnswerFlow = false)
-        }
-    }
-
-    fun tapOption(opt: Int, idx: Int) {
-        if (locked) return
-        if (selectedOption != null) return
-        locked = true
-        selectedOption = opt
-        val ok = opt == game.targetNumber
-        isCorrect = ok
-
-        if (ok) {
-            playAnswerFeedback(FeedbackKind.CORRECT)
-            showCelebration = true
-            val newScore = game.score + 1
-            scope.launch {
-                delay(2500L)
-                showCelebration = false
-                game = GameState.newRound(
-                    score = newScore,
-                    prev = game.targetNumber,
-                    maxNumber = maxNumber,
-                    mode = quizMode,
-                    themePool = themePoolForRound(),
-                )
-                selectedOption = null
-                isCorrect = null
-                locked = false
-                wrongIndex = null
-                shaking = false
-            }
-        } else {
-            playAnswerFeedback(FeedbackKind.WRONG)
-            wrongIndex = idx
-            shaking = true
-            scope.launch {
-                delay(600L)
-                shaking = false
-                delay(1000L)
-                guidanceJob?.cancel()
-                guidanceJob = launch {
-                    startCountHint(fromWrongAnswerFlow = true)
-                }
-            }
-        }
-    }
-
-    LaunchedEffect(maxNumber, quizMode, themeCategoriesStorage, appLanguageRaw) {
-        nextRound(prev = game.targetNumber)
-    }
+    val game = gameViewModel.game
+    val maxNumber = gameViewModel.maxNumber
+    val quizMode = gameViewModel.quizMode
+    val selectedOption = gameViewModel.selectedOption
+    val isCorrect = gameViewModel.isCorrect
+    val locked = gameViewModel.locked
+    val wrongIndex = gameViewModel.wrongIndex
+    val shaking = gameViewModel.shaking
+    val showCelebration = gameViewModel.showCelebration
+    val showingCountHint = gameViewModel.showingCountHint
+    val highlightedCount = gameViewModel.highlightedCount
+    val hintWord = gameViewModel.hintWord
 
     Box(
         modifier = Modifier
@@ -311,9 +161,7 @@ fun NumberCountApp(context: Context) {
             .background(Color(0xFFFFF7E8))
     ) {
         BoxWithConstraints(
-            modifier = Modifier
-                .fillMaxSize()
-                .safeDrawingPadding()
+            modifier = Modifier.fillMaxSize()
         ) {
             val w = maxWidth
             val h = maxHeight
@@ -330,37 +178,69 @@ fun NumberCountApp(context: Context) {
                 phoneLandscape -> 86.sp
                 else -> 84.sp
             }
-            val hintFont = if (isTablet) 34.sp else 26.sp
+            val hintFont = if (isTablet) 36.sp else 28.sp
+            val layoutMin = minOf(w, h)
+            val panelGap = (layoutMin * 0.028f).coerceIn(12.dp, 28.dp)
 
-            Column(modifier = Modifier.fillMaxSize()) {
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .then(
+                        if (wideSplit) {
+                            Modifier.safeDrawingPadding()
+                        } else {
+                            Modifier.windowInsetsPadding(
+                                WindowInsets.systemBars.only(WindowInsetsSides.Horizontal)
+                            )
+                        }
+                    )
+            ) {
+                if (!wideSplit) {
+                    Spacer(modifier = Modifier.windowInsetsTopHeight(WindowInsets.statusBars))
+                    Spacer(modifier = Modifier.weight(1f))
+                }
                 TopBar(
                     appLanguage = appLanguage,
                     maxNumber = maxNumber,
                     quizMode = quizMode,
                     score = game.score,
                     compact = compactBar,
+                    portraitLayout = !wideSplit,
+                    omitTopPadding = !wideSplit,
+                    layoutWidth = w,
+                    layoutHeight = h,
                     onOpenSettings = { showSettings = true },
-                    onSetMaxNumber = { maxNumber = it },
-                    onSetMode = { quizMode = it }
+                    onSetMaxNumber = { gameViewModel.maxNumber = it },
+                    onSetMode = { gameViewModel.quizMode = it }
                 )
 
                 if (wideSplit) {
-                    val gap = if (phoneLandscape) 12.dp else 24.dp
                     val rightPanelW = if (phoneLandscape) minOf(w * 0.46f, 320.dp) else minOf(w * 0.46f, 560.dp)
-                    val maxOptionSide = minOf((rightPanelW - gap) / 2f, (h - 120.dp) / 2f).coerceIn(72.dp, 260.dp)
+                    val landscapeBottomExtra = (h * 0.028f).coerceIn(10.dp, 22.dp)
+                    val maxOptionSide = minOf((rightPanelW - panelGap) / 2f, (h - 120.dp) / 2f).coerceIn(72.dp, 260.dp)
                     val optionSide = if (quizMode == QuizMode.NUMBER_TO_OBJECTS) {
-                        // Grow the answer card with the number of objects, capped to the space.
                         val rows = answerRows(game.options.maxOrNull() ?: 1)
-                        (56.dp + 56.dp * rows).coerceIn(90.dp, maxOptionSide)
+                        val desired = 56.dp + 56.dp * rows
+                        desired.coerceAtMost(maxOptionSide).coerceAtLeast(minOf(72.dp, maxOptionSide))
                     } else {
                         maxOptionSide
                     }
-                    val targetSide = minOf((w - rightPanelW - gap) * 0.9f, h * 0.74f).coerceAtMost(560.dp)
+                    val targetSide = minOf((w - rightPanelW - panelGap) * 0.9f, h * 0.74f).coerceAtMost(560.dp)
+                    val targetPanelModifier = if (quizMode == QuizMode.NUMBER_TO_OBJECTS) {
+                        Modifier.size(numberPanelSize(targetSide, h, isTablet))
+                    } else {
+                        Modifier.size(targetSide)
+                    }
                     Row(
                         modifier = Modifier
                             .fillMaxSize()
-                            .padding(horizontal = if (phoneLandscape) 12.dp else 28.dp),
-                        horizontalArrangement = Arrangement.spacedBy(gap),
+                            .padding(
+                                top = panelGap,
+                                bottom = panelGap + landscapeBottomExtra,
+                                start = if (phoneLandscape) 12.dp else 28.dp,
+                                end = if (phoneLandscape) 12.dp else 28.dp,
+                            ),
+                        horizontalArrangement = Arrangement.spacedBy(panelGap),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Column(
@@ -377,21 +257,13 @@ fun NumberCountApp(context: Context) {
                                 borderColor = targetColor,
                                 showingCountHint = showingCountHint,
                                 highlightedCount = highlightedCount,
+                                hintWord = hintWord,
+                                hintFont = hintFont,
                                 numberFont = targetNumberFont,
                                 cornerRadius = 36.dp,
-                                modifier = Modifier
-                                    .size(targetSide)
-                                    .clickable { onQuestionPanelTapped() }
+                                modifier = targetPanelModifier
+                                    .clickable { gameViewModel.onQuestionPanelTapped(appLanguage) }
                             )
-                            if (showingCountHint && hintWord.isNotBlank()) {
-                                Spacer(modifier = Modifier.height(10.dp))
-                                Text(
-                                    text = hintWord,
-                                    color = Color(0xFFFF6A00),
-                                    fontWeight = FontWeight.Black,
-                                    fontSize = hintFont
-                                )
-                            }
                         }
 
                         Column(
@@ -406,40 +278,53 @@ fun NumberCountApp(context: Context) {
                                 optionValues = game.options,
                                 optionColors = game.theme.colors,
                                 optionHeight = optionSide,
-                                gap = gap,
+                                gap = panelGap,
                                 selectedOption = selectedOption,
                                 isCorrect = isCorrect,
                                 shaking = shaking,
                                 wrongIndex = wrongIndex,
-                                onTap = { opt, idx -> tapOption(opt, idx) }
+                                onTap = { opt, idx ->
+                                    gameViewModel.tapOption(opt, idx, appLanguage, selectedCategories)
+                                }
                             )
                         }
                     }
                 } else {
                     // Stacked layout (phone portrait & tablet portrait)
                     val gridWidth = if (isTablet) minOf(w * 0.82f, 560.dp) else w
-                    val gap = if (isTablet) 16.dp else 12.dp
-                    val optionSide = (gridWidth - gap) / 2f
+                    val optionSide = (gridWidth - panelGap) / 2f
                     val optionHeight = if (quizMode == QuizMode.NUMBER_TO_OBJECTS) {
-                        // Grow the answer card with the number of objects it must show.
                         val rows = answerRows(game.options.maxOrNull() ?: 1)
-                        val perRow = if (isTablet) 64.dp else 52.dp
-                        (44.dp + perRow * rows).coerceIn(110.dp, if (isTablet) 320.dp else 280.dp)
+                        val perRow = (h * 0.062f).coerceIn(44.dp, if (isTablet) 68.dp else 56.dp)
+                        (h * 0.05f + perRow * rows).coerceIn(
+                            (h * 0.13f).coerceAtLeast(100.dp),
+                            (h * 0.36f).coerceAtMost(if (isTablet) 320.dp else 300.dp),
+                        )
                     } else if (isTablet) {
-                        optionSide.coerceIn(120.dp, 240.dp)
+                        optionSide.coerceIn(w * 0.18f, minOf(w * 0.38f, 240.dp))
                     } else {
-                        110.dp
+                        (h * 0.135f).coerceIn(94.dp, 136.dp)
                     }
-                    val targetSide = if (isTablet) minOf(w * 0.6f, h * 0.34f) else minOf(w * 0.82f, h * 0.34f)
+                    val targetSide = if (isTablet) {
+                        minOf(w * 0.6f, h * 0.34f)
+                    } else {
+                        minOf(w * 0.82f, h * 0.30f)
+                    }
+                    val targetPanelModifier = if (quizMode == QuizMode.NUMBER_TO_OBJECTS) {
+                        Modifier.size(numberPanelSize(targetSide, h, isTablet))
+                    } else {
+                        Modifier.size(targetSide)
+                    }
                     val gridModifier = if (isTablet) Modifier.width(gridWidth) else Modifier.fillMaxWidth()
+                    val gameHorizontalPad = (w * 0.04f).coerceIn(12.dp, 20.dp)
 
-                    Column(
+                    Spacer(modifier = Modifier.height(panelGap))
+                    Box(
                         modifier = Modifier
-                            .fillMaxSize()
-                            .padding(horizontal = 16.dp),
-                        horizontalAlignment = Alignment.CenterHorizontally
+                            .fillMaxWidth()
+                            .padding(horizontal = gameHorizontalPad),
+                        contentAlignment = Alignment.Center,
                     ) {
-                        Spacer(modifier = Modifier.weight(1f))
                         TargetPanel(
                             quizMode = quizMode,
                             targetNumber = game.targetNumber,
@@ -447,38 +332,42 @@ fun NumberCountApp(context: Context) {
                             borderColor = targetColor,
                             showingCountHint = showingCountHint,
                             highlightedCount = highlightedCount,
+                            hintWord = hintWord,
+                            hintFont = hintFont,
                             numberFont = targetNumberFont,
                             cornerRadius = if (isTablet) 36.dp else 30.dp,
-                            modifier = Modifier
-                                .size(targetSide)
-                                .clickable { onQuestionPanelTapped() }
+                            modifier = targetPanelModifier
+                                .clickable { gameViewModel.onQuestionPanelTapped(appLanguage) }
                         )
-                        if (showingCountHint && hintWord.isNotBlank()) {
-                            Spacer(modifier = Modifier.height(10.dp))
-                            Text(
-                                text = hintWord,
-                                color = Color(0xFFFF6A00),
-                                fontWeight = FontWeight.Black,
-                                fontSize = hintFont
-                            )
-                        }
-                        Spacer(modifier = Modifier.height(if (isTablet) 28.dp else 20.dp))
+                    }
+                    Spacer(modifier = Modifier.weight(1f))
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = gameHorizontalPad),
+                        contentAlignment = Alignment.Center,
+                    ) {
                         OptionsGrid(
                             quizMode = quizMode,
                             theme = game.theme,
                             optionValues = game.options,
                             optionColors = game.theme.colors,
                             optionHeight = optionHeight,
-                            gap = gap,
+                            gap = panelGap,
                             selectedOption = selectedOption,
                             isCorrect = isCorrect,
                             shaking = shaking,
                             wrongIndex = wrongIndex,
-                            onTap = { opt, idx -> tapOption(opt, idx) },
+                            onTap = { opt, idx ->
+                                gameViewModel.tapOption(opt, idx, appLanguage, selectedCategories)
+                            },
                             modifier = gridModifier
                         )
-                        Spacer(modifier = Modifier.weight(1f))
                     }
+                }
+                if (!wideSplit) {
+                    Spacer(modifier = Modifier.weight(1f))
+                    Spacer(modifier = Modifier.windowInsetsBottomHeight(WindowInsets.navigationBars))
                 }
             }
         }
@@ -486,7 +375,7 @@ fun NumberCountApp(context: Context) {
         if (showCelebration) {
             CelebrationOverlay(
                 number = game.targetNumber,
-                comment = feedbackCorrectPhrase(appLanguage),
+                comment = if (appLanguage == AppLanguage.KOREAN) "그래 잘했다!" else "That's right!",
                 color = game.theme.colors.firstOrNull() ?: Color(0xFFFF6A00)
             )
         }
@@ -523,9 +412,10 @@ fun NumberCountApp(context: Context) {
     }
 }
 
-private val AppOrange = Color(0xFFFF9500)
-private val SegmentTrack = Color(0xFFE8E8E8)
-private val SegmentInactiveText = Color(0xFF808080)
+private val AppOrange = Color(0xFFE08600)
+private val SegmentTrack = Color(0xFFECECEC)
+private val SegmentInactiveText = Color(0xFF424242)
+private val HintTextColor = Color(0xFFD97700)
 
 @Composable
 private fun TopBar(
@@ -534,6 +424,10 @@ private fun TopBar(
     quizMode: QuizMode,
     score: Int,
     compact: Boolean,
+    portraitLayout: Boolean,
+    omitTopPadding: Boolean = false,
+    layoutWidth: Dp,
+    layoutHeight: Dp,
     onOpenSettings: () -> Unit,
     onSetMaxNumber: (Int) -> Unit,
     onSetMode: (QuizMode) -> Unit,
@@ -543,65 +437,171 @@ private fun TopBar(
         // buttons get pushed off-screen, so they stop receiving touches. Stack
         // the controls vertically instead.
         val stacked = maxWidth < 600.dp
+        val padH = if (portraitLayout) (layoutWidth * 0.032f).coerceIn(10.dp, 18.dp) else if (compact) 10.dp else 16.dp
+        val padV = if (portraitLayout) (layoutHeight * 0.011f).coerceIn(6.dp, 12.dp) else if (compact) 6.dp else 10.dp
+        val barPadding = Modifier.padding(
+            start = padH,
+            end = padH,
+            top = if (omitTopPadding) 0.dp else padV,
+            bottom = padV,
+        )
+        val barGap = if (portraitLayout) (layoutHeight * 0.01f).coerceIn(6.dp, 12.dp) else 8.dp
+        val rowGap = if (portraitLayout) (layoutWidth * 0.018f).coerceIn(10.dp, 16.dp) else if (compact) 6.dp else 12.dp
+        val modeScoreGap = if (portraitLayout) (layoutHeight * 0.01f).coerceIn(6.dp, 10.dp) else if (compact) 6.dp else 8.dp
+        val toggleFont = if (portraitLayout) {
+            (layoutWidth.value * 0.04f).coerceIn(15f, 19f).sp
+        } else if (compact) {
+            15.sp
+        } else {
+            17.sp
+        }
+        val chipHPad = if (portraitLayout) (layoutWidth * 0.028f).coerceIn(14.dp, 24.dp) else if (compact) 12.dp else 22.dp
+        val chipVPad = if (portraitLayout) (layoutHeight * 0.013f).coerceIn(9.dp, 13.dp) else if (compact) 9.dp else 11.dp
+        val toggleRowHeight = chipVPad * 2 + 24.dp
+        val gearSize = if (portraitLayout) (layoutWidth * 0.04f).coerceIn(22.dp, 28.dp) else if (compact) 18.dp else 24.dp
+        val gearPad = if (portraitLayout) (layoutWidth * 0.012f).coerceIn(7.dp, 10.dp) else if (compact) 6.dp else 8.dp
+        val starSize = if (portraitLayout) {
+            (layoutWidth.value * 0.034f).coerceIn(19f, 24f).sp
+        } else if (compact) {
+            17.sp
+        } else {
+            21.sp
+        }
+        val starRowH = if (portraitLayout) (layoutHeight * 0.032f).coerceIn(22.dp, 28.dp) else if (compact) 20.dp else 24.dp
 
         if (stacked) {
+            val stackedToggleFont = if (portraitLayout) {
+                (layoutWidth.value * 0.042f).coerceIn(15f, 18f).sp
+            } else {
+                15.sp
+            }
+            val stackedChipHPad = if (portraitLayout) (layoutWidth * 0.038f).coerceIn(12.dp, 20.dp) else 14.dp
+            val stackedChipVPad = if (portraitLayout) (layoutHeight * 0.011f).coerceIn(7.dp, 11.dp) else 8.dp
+            val stackedToggleRowHeight = stackedChipVPad * 2 + 24.dp
+            val stackedGearSize = if (portraitLayout) (layoutWidth * 0.055f).coerceIn(20.dp, 26.dp) else 22.dp
+            val stackedGearPad = if (portraitLayout) (layoutWidth * 0.018f).coerceIn(6.dp, 9.dp) else 7.dp
+            val stackedStarSize = if (portraitLayout) {
+                (layoutWidth.value * 0.048f).coerceIn(17f, 22f).sp
+            } else {
+                19.sp
+            }
+            val stackedStarRowH = if (portraitLayout) (layoutHeight * 0.03f).coerceIn(20.dp, 26.dp) else 22.dp
+
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 12.dp, vertical = 8.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp),
-                horizontalAlignment = Alignment.CenterHorizontally
+                    .then(barPadding),
+                verticalArrangement = Arrangement.spacedBy(barGap),
+                horizontalAlignment = if (portraitLayout) Alignment.Start else Alignment.CenterHorizontally,
             ) {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    DifficultyToggle(maxNumber, fontSize = 14.sp, hPad = 14.dp, vPad = 7.dp, onSetMaxNumber)
+                    DifficultyToggle(
+                        maxNumber,
+                        fontSize = stackedToggleFont,
+                        hPad = stackedChipHPad,
+                        vPad = stackedChipVPad,
+                        rowHeight = stackedToggleRowHeight,
+                        fillWidth = portraitLayout,
+                        onSetMaxNumber = onSetMaxNumber,
+                    )
                     Spacer(modifier = Modifier.weight(1f))
-                    ScoreStars(score, starSize = 18.sp, rowHeight = 22.dp)
-                    Spacer(modifier = Modifier.width(8.dp))
-                    SettingsGear(appLanguage, iconSize = 22.dp, pad = 7.dp, onOpenSettings)
+                    ScoreStars(score, starSize = stackedStarSize, rowHeight = stackedStarRowH)
+                    Spacer(modifier = Modifier.width((layoutWidth * 0.02f).coerceIn(6.dp, 12.dp)))
+                    SettingsGear(appLanguage, iconSize = stackedGearSize, pad = stackedGearPad, onOpenSettings)
                 }
-                ModeToggle(appLanguage, quizMode, fontSize = 16.sp, hPad = 18.dp, vPad = 9.dp, onSetMode)
+                ModeToggle(
+                    appLanguage,
+                    quizMode,
+                    fontSize = stackedToggleFont,
+                    hPad = stackedChipHPad,
+                    vPad = stackedChipVPad,
+                    rowHeight = stackedToggleRowHeight,
+                    fillWidth = portraitLayout,
+                    onSetMode = onSetMode,
+                )
+            }
+        } else if (!portraitLayout) {
+            // Landscape: difficulty → mode → stars → settings (left to right)
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .then(barPadding),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(rowGap),
+            ) {
+                DifficultyToggle(
+                    maxNumber,
+                    fontSize = toggleFont,
+                    hPad = chipHPad,
+                    vPad = chipVPad,
+                    rowHeight = toggleRowHeight,
+                    onSetMaxNumber = onSetMaxNumber,
+                )
+                ModeToggle(
+                    appLanguage,
+                    quizMode,
+                    fontSize = toggleFont,
+                    hPad = chipHPad,
+                    vPad = chipVPad,
+                    rowHeight = toggleRowHeight,
+                    onSetMode = onSetMode,
+                )
+                Spacer(modifier = Modifier.weight(1f))
+                ScoreStars(
+                    score,
+                    starSize = starSize,
+                    rowHeight = starRowH,
+                )
+                SettingsGear(
+                    appLanguage,
+                    iconSize = gearSize,
+                    pad = gearPad,
+                    onOpenSettings,
+                )
             }
         } else {
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = if (compact) 10.dp else 16.dp, vertical = if (compact) 6.dp else 10.dp),
+                    .then(barPadding),
                 verticalAlignment = Alignment.Top,
-                horizontalArrangement = Arrangement.spacedBy(if (compact) 6.dp else 12.dp)
+                horizontalArrangement = Arrangement.spacedBy(rowGap)
             ) {
                 Spacer(modifier = Modifier.weight(1f))
                 Column(
                     horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.spacedBy(if (compact) 6.dp else 8.dp)
+                    verticalArrangement = Arrangement.spacedBy(modeScoreGap)
                 ) {
                     ModeToggle(
                         appLanguage, quizMode,
-                        fontSize = if (compact) 14.sp else 18.sp,
-                        hPad = if (compact) 12.dp else 22.dp,
-                        vPad = if (compact) 8.dp else 10.dp,
-                        onSetMode
+                        fontSize = toggleFont,
+                        hPad = chipHPad,
+                        vPad = chipVPad,
+                        rowHeight = toggleRowHeight,
+                        onSetMode = onSetMode,
                     )
                     ScoreStars(
                         score,
-                        starSize = if (compact) 16.sp else 20.sp,
-                        rowHeight = if (compact) 20.dp else 24.dp
+                        starSize = starSize,
+                        rowHeight = starRowH
                     )
                 }
                 Spacer(modifier = Modifier.weight(1f))
                 DifficultyToggle(
                     maxNumber,
-                    fontSize = if (compact) 13.sp else 14.sp,
-                    hPad = if (compact) 12.dp else 14.dp,
-                    vPad = if (compact) 6.dp else 7.dp,
-                    onSetMaxNumber
+                    fontSize = toggleFont,
+                    hPad = chipHPad,
+                    vPad = chipVPad,
+                    rowHeight = toggleRowHeight,
+                    onSetMaxNumber = onSetMaxNumber,
                 )
                 SettingsGear(
                     appLanguage,
-                    iconSize = if (compact) 18.dp else 24.dp,
-                    pad = if (compact) 6.dp else 8.dp,
+                    iconSize = gearSize,
+                    pad = gearPad,
                     onOpenSettings
                 )
             }
@@ -616,10 +616,14 @@ private fun ModeToggle(
     fontSize: TextUnit,
     hPad: Dp,
     vPad: Dp,
+    rowHeight: Dp,
+    fillWidth: Boolean = false,
     onSetMode: (QuizMode) -> Unit,
 ) {
     Row(
         modifier = Modifier
+            .then(if (fillWidth) Modifier.fillMaxWidth() else Modifier)
+            .height(rowHeight)
             .clip(RoundedCornerShape(20.dp))
             .background(SegmentTrack)
     ) {
@@ -629,6 +633,8 @@ private fun ModeToggle(
             fontSize = fontSize,
             hPad = hPad,
             vPad = vPad,
+            fillHeight = true,
+            modifier = if (fillWidth) Modifier.weight(1f) else Modifier,
         ) { onSetMode(QuizMode.OBJECTS_TO_NUMBER) }
         SegmentChip(
             text = if (appLanguage == AppLanguage.KOREAN) "숫자 - 갯수" else "Number → Count",
@@ -636,6 +642,8 @@ private fun ModeToggle(
             fontSize = fontSize,
             hPad = hPad,
             vPad = vPad,
+            fillHeight = true,
+            modifier = if (fillWidth) Modifier.weight(1f) else Modifier,
         ) { onSetMode(QuizMode.NUMBER_TO_OBJECTS) }
     }
 }
@@ -646,10 +654,14 @@ private fun DifficultyToggle(
     fontSize: TextUnit,
     hPad: Dp,
     vPad: Dp,
+    rowHeight: Dp,
+    fillWidth: Boolean = false,
     onSetMaxNumber: (Int) -> Unit,
 ) {
     Row(
         modifier = Modifier
+            .then(if (fillWidth) Modifier.fillMaxWidth(0.5f) else Modifier)
+            .height(rowHeight)
             .clip(RoundedCornerShape(20.dp))
             .background(SegmentTrack)
     ) {
@@ -660,6 +672,8 @@ private fun DifficultyToggle(
                 fontSize = fontSize,
                 hPad = hPad,
                 vPad = vPad,
+                fillHeight = true,
+                modifier = if (fillWidth) Modifier.weight(1f) else Modifier,
             ) { onSetMaxNumber(n) }
         }
     }
@@ -709,10 +723,13 @@ private fun SegmentChip(
     fontSize: TextUnit,
     hPad: Dp,
     vPad: Dp,
+    fillHeight: Boolean = false,
+    modifier: Modifier = Modifier,
     onClick: () -> Unit,
 ) {
     Box(
-        modifier = Modifier
+        modifier = modifier
+            .then(if (fillHeight) Modifier.fillMaxHeight() else Modifier)
             .clip(RoundedCornerShape(20.dp))
             .background(if (selected) AppOrange else Color.Transparent)
             .clickable { onClick() }
@@ -722,10 +739,11 @@ private fun SegmentChip(
         Text(
             text = text,
             fontSize = fontSize,
-            fontWeight = FontWeight.Bold,
+            lineHeight = (fontSize.value * 1.25f).sp,
+            fontWeight = if (selected) FontWeight.Bold else FontWeight.SemiBold,
             color = if (selected) Color.White else SegmentInactiveText,
             textAlign = TextAlign.Center,
-            maxLines = 2
+            maxLines = 2,
         )
     }
 }
@@ -738,6 +756,8 @@ private fun TargetPanel(
     borderColor: Color,
     showingCountHint: Boolean,
     highlightedCount: Int,
+    hintWord: String,
+    hintFont: TextUnit,
     numberFont: TextUnit,
     cornerRadius: Dp,
     modifier: Modifier,
@@ -752,25 +772,72 @@ private fun TargetPanel(
             .background(Color.White, shape)
             .border(strokeWidth, strokeColor, shape)
             .padding(18.dp),
-        contentAlignment = Alignment.Center
     ) {
-        if (quizMode == QuizMode.NUMBER_TO_OBJECTS) {
-            Text(
-                text = targetNumber.toString(),
-                color = borderColor,
-                fontSize = numberFont,
-                fontWeight = FontWeight.Black,
-                textAlign = TextAlign.Center,
-                maxLines = 1,
-            )
-        } else {
-            AnswerCardView(
-                count = targetNumber,
-                theme = theme,
-                highlightedCount = highlightedCount,
-                emphasizeHint = showingCountHint,
-                iconScale = 1.6f
-            )
+        Column(
+            modifier = Modifier.fillMaxSize(),
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
+            Box(
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxWidth(),
+                contentAlignment = Alignment.Center,
+            ) {
+                if (quizMode == QuizMode.NUMBER_TO_OBJECTS) {
+                    val showHintLine = showingCountHint && hintWord.isNotBlank()
+                    val numberSize = if (showHintLine) {
+                        (numberFont.value * 0.78f).coerceAtLeast(48f).sp
+                    } else {
+                        numberFont
+                    }
+                    Text(
+                        text = targetNumber.toString(),
+                        color = borderColor,
+                        fontSize = numberSize,
+                        fontWeight = FontWeight.Black,
+                        textAlign = TextAlign.Center,
+                        maxLines = 1,
+                    )
+                } else {
+                    AnswerCardView(
+                        count = targetNumber,
+                        theme = theme,
+                        highlightedCount = highlightedCount,
+                        emphasizeHint = showingCountHint,
+                        iconScale = 1.6f,
+                        modifier = Modifier.fillMaxSize(),
+                    )
+                }
+            }
+            if (quizMode == QuizMode.NUMBER_TO_OBJECTS && showingCountHint && hintWord.isNotBlank()) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(52.dp),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Text(
+                        text = hintWord,
+                        color = HintTextColor,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = hintFont,
+                        lineHeight = (hintFont.value * 1.2f).sp,
+                        textAlign = TextAlign.Center,
+                        maxLines = 1,
+                    )
+                }
+            } else if (quizMode != QuizMode.NUMBER_TO_OBJECTS && showingCountHint && hintWord.isNotBlank()) {
+                Text(
+                    text = hintWord,
+                    color = HintTextColor,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = hintFont,
+                    lineHeight = (hintFont.value * 1.2f).sp,
+                    textAlign = TextAlign.Center,
+                    maxLines = 1,
+                    modifier = Modifier.padding(top = 4.dp, bottom = 2.dp),
+                )
+            }
         }
     }
 }
@@ -818,6 +885,14 @@ private fun OptionsGrid(
     }
 }
 
+private fun numberPanelSize(baseSide: Dp, screenHeight: Dp, isTablet: Boolean): Dp {
+    val scaled = baseSide * if (isTablet) 0.88f else 0.85f
+    val maxByHeight = if (isTablet) screenHeight * 0.44f else screenHeight * 0.38f
+    val upper = minOf(scaled, maxByHeight, baseSide)
+    val lower = minOf(140.dp, upper)
+    return upper.coerceAtLeast(lower)
+}
+
 @Composable
 private fun CelebrationOverlay(number: Int, comment: String, color: Color) {
     Box(
@@ -827,16 +902,113 @@ private fun CelebrationOverlay(number: Int, comment: String, color: Color) {
             .padding(24.dp),
         contentAlignment = Alignment.Center
     ) {
-        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            Text(text = "✅", fontSize = 64.sp)
-            Text(
-                text = number.toString(),
-                fontSize = 84.sp,
-                color = color,
-                fontWeight = FontWeight.Black
-            )
-            Spacer(modifier = Modifier.height(10.dp))
-            Text(text = comment, color = Color(0xFF22C55E), fontWeight = FontWeight.Bold)
+        Box(
+            modifier = Modifier.size(300.dp),
+            contentAlignment = Alignment.Center,
+        ) {
+            SparkleBurst()
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                PulsingCelebrationIcon(text = "⭐", fontSize = 64.sp)
+                PulsingCelebrationIcon(
+                    content = {
+                        Text(
+                            text = number.toString(),
+                            fontSize = 84.sp,
+                            color = color,
+                            fontWeight = FontWeight.Black
+                        )
+                    }
+                )
+                Spacer(modifier = Modifier.height(10.dp))
+                Text(
+                    text = comment,
+                    color = Color(0xFF22C55E),
+                    fontWeight = FontWeight.Black,
+                    fontSize = 42.sp,
+                    textAlign = TextAlign.Center,
+                )
+            }
+        }
+    }
+}
+
+private data class SparkleSpec(
+    val offsetX: Dp,
+    val offsetY: Dp,
+    val delayMs: Int,
+    val size: TextUnit,
+)
+
+@Composable
+private fun SparkleBurst() {
+    val sparkles = remember {
+        listOf(
+            SparkleSpec((-98).dp, (-72).dp, 0, 30.sp),
+            SparkleSpec(92.dp, (-64).dp, 160, 26.sp),
+            SparkleSpec((-88).dp, 58.dp, 320, 24.sp),
+            SparkleSpec(86.dp, 68.dp, 480, 28.sp),
+            SparkleSpec(0.dp, (-102).dp, 240, 32.sp),
+            SparkleSpec((-110).dp, 4.dp, 400, 22.sp),
+            SparkleSpec(108.dp, 8.dp, 80, 22.sp),
+        )
+    }
+    sparkles.forEach { spec ->
+        PulsingSparkle(spec)
+    }
+}
+
+@Composable
+private fun PulsingSparkle(spec: SparkleSpec) {
+    val transition = rememberInfiniteTransition(label = "sparkle")
+    val scale by transition.animateFloat(
+        initialValue = 0.35f,
+        targetValue = 1.15f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(durationMillis = 850, delayMillis = spec.delayMs, easing = FastOutSlowInEasing),
+            repeatMode = RepeatMode.Reverse,
+        ),
+        label = "sparkleScale",
+    )
+    val alpha by transition.animateFloat(
+        initialValue = 0.15f,
+        targetValue = 1f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(durationMillis = 850, delayMillis = spec.delayMs, easing = FastOutSlowInEasing),
+            repeatMode = RepeatMode.Reverse,
+        ),
+        label = "sparkleAlpha",
+    )
+    Text(
+        text = "✨",
+        fontSize = spec.size,
+        modifier = Modifier
+            .offset(x = spec.offsetX, y = spec.offsetY)
+            .scale(scale)
+            .alpha(alpha),
+    )
+}
+
+@Composable
+private fun PulsingCelebrationIcon(
+    text: String? = null,
+    fontSize: TextUnit = 64.sp,
+    content: (@Composable () -> Unit)? = null,
+) {
+    val transition = rememberInfiniteTransition(label = "celebrationPulse")
+    val scale by transition.animateFloat(
+        initialValue = 0.92f,
+        targetValue = 1.08f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(durationMillis = 700, easing = FastOutSlowInEasing),
+            repeatMode = RepeatMode.Reverse,
+        ),
+        label = "celebrationScale",
+    )
+    Box(modifier = Modifier.scale(scale)) {
+        if (content != null) {
+            content()
+        } else {
+            Text(text = text.orEmpty(), fontSize = fontSize)
         }
     }
 }
@@ -852,16 +1024,8 @@ private fun answerRows(count: Int): Int {
     return ((count + pr - 1) / pr).coerceAtLeast(1)
 }
 
-@Composable
-private fun AnswerCardView(
-    count: Int,
-    theme: Theme,
-    highlightedCount: Int,
-    emphasizeHint: Boolean,
-    iconScale: Float = 1f,
-) {
+private fun answerRowCounts(count: Int): List<Int> {
     val pr = answerColumns(count)
-
     var rem = count
     val rows = mutableListOf<Int>()
     while (rem > 0) {
@@ -869,7 +1033,17 @@ private fun AnswerCardView(
         rows.add(n)
         rem -= n
     }
+    return rows
+}
 
+private fun computeAnswerCardLayout(
+    count: Int,
+    rows: List<Int>,
+    maxWidth: Dp,
+    maxHeight: Dp,
+    iconScale: Float,
+    density: androidx.compose.ui.unit.Density,
+): Pair<TextUnit, Dp> {
     val baseIcon = when {
         count <= 4 -> 36f
         count <= 6 -> 32f
@@ -880,28 +1054,69 @@ private fun AnswerCardView(
         count <= 6 -> 9f
         else -> 8f
     }
-    val iconSize = (baseIcon * iconScale).coerceAtMost(72f).sp
-    val iconSpacing = (baseSpacing * iconScale).coerceIn(6f, 18f).dp
 
-    Column(verticalArrangement = Arrangement.spacedBy(iconSpacing)) {
-        var indexStart = 1
-        rows.forEach { rowCount ->
-            Row(horizontalArrangement = Arrangement.spacedBy(iconSpacing)) {
-                repeat(rowCount) { col ->
-                    val index = indexStart + col
-                    val active = emphasizeHint && index <= highlightedCount
-                    val bg = if (active) theme.colors[(index - 1) % theme.colors.size].copy(alpha = 0.35f) else Color.Transparent
-                    Box(
-                        modifier = Modifier
-                            .background(bg, RoundedCornerShape(999.dp))
-                            .padding(4.dp),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text(text = theme.item, fontSize = iconSize, fontWeight = FontWeight.Black)
+    var iconSp = (baseIcon * iconScale).coerceAtMost(72f)
+    var spacing = (baseSpacing * iconScale).coerceIn(4f, 18f)
+
+    val maxRowItems = rows.maxOrNull() ?: 1
+    val numRows = rows.size
+    val itemPadding = 8.dp
+    val emojiScale = 1.12f
+
+    fun fits(icon: Float, gap: Dp): Boolean {
+        val itemSize = with(density) { icon.sp.toDp() } * emojiScale + itemPadding
+        val totalW = itemSize * maxRowItems + gap * (maxRowItems - 1).coerceAtLeast(0)
+        val totalH = itemSize * numRows + gap * (numRows - 1).coerceAtLeast(0)
+        return totalW <= maxWidth && totalH <= maxHeight
+    }
+
+    while (!fits(iconSp, spacing.dp)) {
+        when {
+            spacing > 2f -> spacing -= 1f
+            iconSp > 14f -> iconSp -= 1f
+            else -> break
+        }
+    }
+
+    return iconSp.sp to spacing.dp
+}
+
+@Composable
+private fun AnswerCardView(
+    count: Int,
+    theme: Theme,
+    highlightedCount: Int,
+    emphasizeHint: Boolean,
+    iconScale: Float = 1f,
+    modifier: Modifier = Modifier,
+) {
+    BoxWithConstraints(modifier = modifier, contentAlignment = Alignment.Center) {
+        val rows = remember(count) { answerRowCounts(count) }
+        val density = LocalDensity.current
+        val (iconSize, iconSpacing) = remember(count, maxWidth, maxHeight, iconScale, density) {
+            computeAnswerCardLayout(count, rows, maxWidth, maxHeight, iconScale, density)
+        }
+
+        Column(verticalArrangement = Arrangement.spacedBy(iconSpacing)) {
+            var indexStart = 1
+            rows.forEach { rowCount ->
+                Row(horizontalArrangement = Arrangement.spacedBy(iconSpacing)) {
+                    repeat(rowCount) { col ->
+                        val index = indexStart + col
+                        val active = emphasizeHint && index <= highlightedCount
+                        val bg = if (active) theme.colors[(index - 1) % theme.colors.size].copy(alpha = 0.35f) else Color.Transparent
+                        Box(
+                            modifier = Modifier
+                                .background(bg, RoundedCornerShape(999.dp))
+                                .padding(4.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(text = theme.item, fontSize = iconSize, fontWeight = FontWeight.Black)
+                        }
                     }
                 }
+                indexStart += rowCount
             }
-            indexStart += rowCount
         }
     }
 }
@@ -935,10 +1150,10 @@ private fun RowScope.OptionCell(
     }
 
     val numberFont = when {
-        height >= 200.dp -> 96.sp
-        height >= 160.dp -> 84.sp
-        height >= 130.dp -> 70.sp
-        else -> 54.sp
+        height >= 200.dp -> 100.sp
+        height >= 160.dp -> 88.sp
+        height >= 130.dp -> 74.sp
+        else -> 58.sp
     }
 
     Box(
@@ -957,7 +1172,10 @@ private fun RowScope.OptionCell(
                 count = value,
                 theme = theme,
                 highlightedCount = 0,
-                emphasizeHint = false
+                emphasizeHint = false,
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(10.dp),
             )
         } else {
             Text(

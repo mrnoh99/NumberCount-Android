@@ -3,6 +3,7 @@ package com.example.numbercount.audio
 import android.content.Context
 import android.media.AudioAttributes
 import android.media.MediaPlayer
+import android.media.SoundPool
 import android.speech.tts.TextToSpeech
 import androidx.annotation.RawRes
 import com.example.numbercount.AppLanguage
@@ -24,6 +25,11 @@ class AudioController(
     @RawRes
     private val bgmRes: Int = R.raw.waltz_for_you
 
+    @RawRes
+    private val correctChimeRes: Int = R.raw.correct_chime
+
+    private val sfxVolume = 0.85f
+
     private val isTtsSpeaking = AtomicBoolean(false)
 
     private val audioAttributes: AudioAttributes =
@@ -32,7 +38,16 @@ class AudioController(
             .setContentType(AudioAttributes.CONTENT_TYPE_MUSIC)
             .build()
 
+    private val sfxAttributes: AudioAttributes =
+        AudioAttributes.Builder()
+            .setUsage(AudioAttributes.USAGE_GAME)
+            .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
+            .build()
+
     private var bgmPlayer: MediaPlayer? = null
+    private var soundPool: SoundPool? = null
+    private var correctChimeSoundId: Int = 0
+    private var correctChimeLoaded = false
 
     private var tts: TextToSpeech
 
@@ -53,6 +68,19 @@ class AudioController(
             setVolume(volume, volume)
             if (enabled) start()
         }
+
+        soundPool = SoundPool.Builder()
+            .setMaxStreams(3)
+            .setAudioAttributes(sfxAttributes)
+            .build()
+            .also { pool ->
+                correctChimeSoundId = pool.load(context, correctChimeRes, 1)
+                pool.setOnLoadCompleteListener { _, sampleId, status ->
+                    if (sampleId == correctChimeSoundId && status == 0) {
+                        correctChimeLoaded = true
+                    }
+                }
+            }
     }
 
     fun isBgmEnabled(): Boolean = prefs.getBoolean(bgmEnabledKey, true)
@@ -86,6 +114,34 @@ class AudioController(
             setVolume(v, v)
             if (!isPlaying) start()
         }
+    }
+
+    fun playCorrectChime() {
+        if (!correctChimeLoaded || correctChimeSoundId <= 0) return
+        soundPool?.play(correctChimeSoundId, sfxVolume, sfxVolume, 1, 0, 1f)
+    }
+
+    fun release() {
+        stopTts()
+        try {
+            tts.shutdown()
+        } catch (_: Exception) {
+        }
+        try {
+            bgmPlayer?.let { player ->
+                if (player.isPlaying) player.stop()
+                player.release()
+            }
+        } catch (_: Exception) {
+        }
+        bgmPlayer = null
+        try {
+            soundPool?.release()
+        } catch (_: Exception) {
+        }
+        soundPool = null
+        correctChimeSoundId = 0
+        correctChimeLoaded = false
     }
 
     fun stopTts() {
