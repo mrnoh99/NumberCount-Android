@@ -157,15 +157,18 @@ object ThemeCatalog {
     }
 }
 
+// Matches the iOS numColors palette so the target number/border colors are identical.
 val numColors: List<Color> = listOf(
-    Color(0xFFFF9800), // orange
-    Color(0xFF26A69A), // teal-ish
-    Color(0xFF7E57C2), // purple-ish
-    Color(0xFFE53935), // red
-    Color(0xFF5CACE5), // custom blue
-    Color(0xFFFF6F61), // salmon-ish
-    Color(0xFF5CB85C), // green
-    Color(0xFF3F51B5), // indigo-ish
+    Color(0xFFFF9500), // orange (.orange)
+    Color(0xFF30B0C7), // teal (.teal)
+    Color(0xFFAF52DE), // purple (.purple)
+    Color(0xFFFF3B30), // red (.red)
+    Color(0xFF52CF66), // green
+    Color(0xFFFFB347), // light orange
+    Color(0xFF4A8FD9), // blue
+    Color(0xFFFF8FB0), // pink
+    Color(0xFF7DC7A3), // teal-green
+    Color(0xFF5856D6), // indigo (.indigo)
 )
 
 data class GameState(

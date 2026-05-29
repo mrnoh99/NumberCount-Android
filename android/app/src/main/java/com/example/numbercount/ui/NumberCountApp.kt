@@ -21,9 +21,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.safeDrawingPadding
-import androidx.compose.foundation.layout.sizeIn
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
@@ -42,8 +40,19 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
+import androidx.compose.foundation.border
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.layout.size
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material3.Icon
+import com.example.numbercount.numColors
 import com.example.numbercount.AppLanguage
 import com.example.numbercount.GameState
 import com.example.numbercount.ItemCategory
@@ -299,127 +308,161 @@ fun NumberCountApp(context: Context) {
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(Color(0xFFFFF6E6))
+            .background(Color(0xFFFFF7E8))
     ) {
         BoxWithConstraints(
             modifier = Modifier
                 .fillMaxSize()
                 .safeDrawingPadding()
-                .padding(16.dp)
         ) {
             val w = maxWidth
             val h = maxHeight
             val isLandscape = w > h
-            val isTablet = w >= 768.dp
-            val phoneLandscapeSplit = !isTablet && isLandscape
-            val wideSplit = isTablet || phoneLandscapeSplit
+            val isTablet = w >= 600.dp
+            val tabletLandscape = isTablet && isLandscape
+            val phoneLandscape = !isTablet && isLandscape
+            val wideSplit = tabletLandscape || phoneLandscape
+            val compactBar = phoneLandscape
 
-            val optionHeight = when {
-                isTablet && isLandscape -> 220.dp
-                isTablet -> 170.dp
-                phoneLandscapeSplit -> 120.dp
-                else -> 110.dp
-            }
+            val targetColor = numColors[((game.targetNumber - 1).coerceAtLeast(0)) % numColors.size]
             val targetNumberFont = when {
-                isTablet && isLandscape -> 140.sp
                 isTablet -> 120.sp
-                phoneLandscapeSplit -> 86.sp
-                else -> 72.sp
+                phoneLandscape -> 86.sp
+                else -> 84.sp
             }
-            val topSpacing = if (phoneLandscapeSplit) 8.dp else 12.dp
+            val hintFont = if (isTablet) 34.sp else 26.sp
 
-            Column(
-                modifier = Modifier.fillMaxSize(),
-                verticalArrangement = Arrangement.spacedBy(topSpacing)
-            ) {
+            Column(modifier = Modifier.fillMaxSize()) {
                 TopBar(
                     appLanguage = appLanguage,
                     maxNumber = maxNumber,
                     quizMode = quizMode,
                     score = game.score,
-                    compact = phoneLandscapeSplit,
+                    compact = compactBar,
                     onOpenSettings = { showSettings = true },
                     onSetMaxNumber = { maxNumber = it },
                     onSetMode = { quizMode = it }
                 )
 
                 if (wideSplit) {
-                    val gap = if (phoneLandscapeSplit) 12.dp else 18.dp
+                    val gap = if (phoneLandscape) 12.dp else 24.dp
+                    val rightPanelW = if (phoneLandscape) minOf(w * 0.46f, 320.dp) else minOf(w * 0.46f, 560.dp)
+                    val optionSide = minOf((rightPanelW - gap) / 2f, (h - 120.dp) / 2f).coerceIn(72.dp, 260.dp)
+                    val targetSide = minOf((w - rightPanelW - gap) * 0.9f, h * 0.74f).coerceAtMost(560.dp)
                     Row(
-                        modifier = Modifier.fillMaxSize(),
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(horizontal = if (phoneLandscape) 12.dp else 28.dp),
                         horizontalArrangement = Arrangement.spacedBy(gap),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        // Left: target panel + hint
                         Column(
                             modifier = Modifier
                                 .weight(1f)
                                 .fillMaxSize(),
-                            verticalArrangement = Arrangement.spacedBy(10.dp),
+                            verticalArrangement = Arrangement.Center,
                             horizontalAlignment = Alignment.CenterHorizontally
                         ) {
                             TargetPanel(
                                 quizMode = quizMode,
-                                gameTargetNumber = game.targetNumber,
+                                targetNumber = game.targetNumber,
                                 theme = game.theme,
-                                highlightedCount = highlightedCount,
+                                borderColor = targetColor,
                                 showingCountHint = showingCountHint,
-                                hintWord = hintWord,
+                                highlightedCount = highlightedCount,
                                 numberFont = targetNumberFont,
+                                cornerRadius = 36.dp,
                                 modifier = Modifier
-                                    .fillMaxWidth()
-                                    .sizeIn(maxWidth = if (isTablet) 520.dp else 360.dp)
+                                    .size(targetSide)
                                     .clickable { onQuestionPanelTapped() }
                             )
+                            if (showingCountHint && hintWord.isNotBlank()) {
+                                Spacer(modifier = Modifier.height(10.dp))
+                                Text(
+                                    text = hintWord,
+                                    color = Color(0xFFFF6A00),
+                                    fontWeight = FontWeight.Black,
+                                    fontSize = hintFont
+                                )
+                            }
                         }
 
-                        // Right: options grid 2x2
                         Column(
                             modifier = Modifier
-                                .width(if (isTablet) 520.dp else 320.dp)
+                                .width(rightPanelW)
                                 .fillMaxSize(),
-                            verticalArrangement = Arrangement.spacedBy(10.dp)
+                            verticalArrangement = Arrangement.Center
                         ) {
                             OptionsGrid(
-                                optionHeight = optionHeight,
+                                quizMode = quizMode,
+                                theme = game.theme,
                                 optionValues = game.options,
                                 optionColors = game.theme.colors,
+                                optionHeight = optionSide,
+                                gap = gap,
                                 selectedOption = selectedOption,
                                 isCorrect = isCorrect,
                                 shaking = shaking,
                                 wrongIndex = wrongIndex,
                                 onTap = { opt, idx -> tapOption(opt, idx) }
                             )
-                            Spacer(modifier = Modifier.weight(1f))
                         }
                     }
                 } else {
-                    // Phone portrait (stack)
-                    TargetPanel(
-                        quizMode = quizMode,
-                        gameTargetNumber = game.targetNumber,
-                        theme = game.theme,
-                        highlightedCount = highlightedCount,
-                        showingCountHint = showingCountHint,
-                        hintWord = hintWord,
-                        numberFont = targetNumberFont,
+                    // Stacked layout (phone portrait & tablet portrait)
+                    val gridWidth = if (isTablet) minOf(w * 0.82f, 560.dp) else w
+                    val gap = if (isTablet) 16.dp else 12.dp
+                    val optionSide = (gridWidth - gap) / 2f
+                    val optionHeight = if (isTablet) optionSide.coerceIn(120.dp, 240.dp) else 110.dp
+                    val targetSide = if (isTablet) minOf(w * 0.6f, h * 0.34f) else minOf(w * 0.82f, h * 0.34f)
+                    val gridModifier = if (isTablet) Modifier.width(gridWidth) else Modifier.fillMaxWidth()
+
+                    Column(
                         modifier = Modifier
-                            .fillMaxWidth()
-                            .clickable { onQuestionPanelTapped() }
-                    )
-
-                    OptionsGrid(
-                        optionHeight = optionHeight,
-                        optionValues = game.options,
-                        optionColors = game.theme.colors,
-                        selectedOption = selectedOption,
-                        isCorrect = isCorrect,
-                        shaking = shaking,
-                        wrongIndex = wrongIndex,
-                        onTap = { opt, idx -> tapOption(opt, idx) }
-                    )
-
-                    Spacer(modifier = Modifier.weight(1f))
+                            .fillMaxSize()
+                            .padding(horizontal = 16.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        Spacer(modifier = Modifier.weight(1f))
+                        TargetPanel(
+                            quizMode = quizMode,
+                            targetNumber = game.targetNumber,
+                            theme = game.theme,
+                            borderColor = targetColor,
+                            showingCountHint = showingCountHint,
+                            highlightedCount = highlightedCount,
+                            numberFont = targetNumberFont,
+                            cornerRadius = if (isTablet) 36.dp else 30.dp,
+                            modifier = Modifier
+                                .size(targetSide)
+                                .clickable { onQuestionPanelTapped() }
+                        )
+                        if (showingCountHint && hintWord.isNotBlank()) {
+                            Spacer(modifier = Modifier.height(10.dp))
+                            Text(
+                                text = hintWord,
+                                color = Color(0xFFFF6A00),
+                                fontWeight = FontWeight.Black,
+                                fontSize = hintFont
+                            )
+                        }
+                        Spacer(modifier = Modifier.height(if (isTablet) 28.dp else 20.dp))
+                        OptionsGrid(
+                            quizMode = quizMode,
+                            theme = game.theme,
+                            optionValues = game.options,
+                            optionColors = game.theme.colors,
+                            optionHeight = optionHeight,
+                            gap = gap,
+                            selectedOption = selectedOption,
+                            isCorrect = isCorrect,
+                            shaking = shaking,
+                            wrongIndex = wrongIndex,
+                            onTap = { opt, idx -> tapOption(opt, idx) },
+                            modifier = gridModifier
+                        )
+                        Spacer(modifier = Modifier.weight(1f))
+                    }
                 }
             }
         }
@@ -464,6 +507,10 @@ fun NumberCountApp(context: Context) {
     }
 }
 
+private val AppOrange = Color(0xFFFF9500)
+private val SegmentTrack = Color(0xFFE8E8E8)
+private val SegmentInactiveText = Color(0xFF808080)
+
 @Composable
 private fun TopBar(
     appLanguage: AppLanguage,
@@ -475,42 +522,119 @@ private fun TopBar(
     onSetMaxNumber: (Int) -> Unit,
     onSetMode: (QuizMode) -> Unit,
 ) {
-    val spacing = if (compact) 8.dp else 12.dp
+    val modeFont = if (compact) 14.sp else 18.sp
 
-    Column(verticalArrangement = Arrangement.spacedBy(spacing)) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Button(onClick = onOpenSettings) {
-                Text(if (appLanguage == AppLanguage.KOREAN) "설정" else "Settings")
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = if (compact) 10.dp else 16.dp, vertical = if (compact) 6.dp else 10.dp),
+        verticalAlignment = Alignment.Top,
+        horizontalArrangement = Arrangement.spacedBy(if (compact) 6.dp else 12.dp)
+    ) {
+        Spacer(modifier = Modifier.weight(1f))
+
+        // Center: mode toggle + score stars
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(if (compact) 6.dp else 8.dp)
+        ) {
+            Row(
+                modifier = Modifier
+                    .clip(RoundedCornerShape(20.dp))
+                    .background(SegmentTrack)
+            ) {
+                SegmentChip(
+                    text = if (appLanguage == AppLanguage.KOREAN) "갯수 - 숫자" else "Count → Number",
+                    selected = quizMode == QuizMode.OBJECTS_TO_NUMBER,
+                    fontSize = modeFont,
+                    hPad = if (compact) 12.dp else 22.dp,
+                    vPad = if (compact) 8.dp else 10.dp,
+                ) { onSetMode(QuizMode.OBJECTS_TO_NUMBER) }
+                SegmentChip(
+                    text = if (appLanguage == AppLanguage.KOREAN) "숫자 - 갯수" else "Number → Count",
+                    selected = quizMode == QuizMode.NUMBER_TO_OBJECTS,
+                    fontSize = modeFont,
+                    hPad = if (compact) 12.dp else 22.dp,
+                    vPad = if (compact) 8.dp else 10.dp,
+                ) { onSetMode(QuizMode.NUMBER_TO_OBJECTS) }
             }
-            Spacer(modifier = Modifier.width(8.dp))
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Button(onClick = { onSetMaxNumber(5) }, enabled = maxNumber != 5) { Text("1–5") }
-                Button(onClick = { onSetMaxNumber(10) }, enabled = maxNumber != 10) { Text("1–10") }
+
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(4.dp),
+                modifier = Modifier.height(if (compact) 20.dp else 24.dp)
+            ) {
+                repeat(min(score, 10)) {
+                    Text(
+                        text = "★",
+                        color = Color(0xFFFFCC00),
+                        fontSize = if (compact) 16.sp else 20.sp
+                    )
+                }
             }
         }
 
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
-            Button(
-                onClick = { onSetMode(QuizMode.OBJECTS_TO_NUMBER) },
-                enabled = quizMode != QuizMode.OBJECTS_TO_NUMBER,
-                modifier = Modifier.weight(1f)
-            ) {
-                Text(if (appLanguage == AppLanguage.KOREAN) "갯수 - 숫자" else "Count → Number")
-            }
-            Button(
-                onClick = { onSetMode(QuizMode.NUMBER_TO_OBJECTS) },
-                enabled = quizMode != QuizMode.NUMBER_TO_OBJECTS,
-                modifier = Modifier.weight(1f)
-            ) {
-                Text(if (appLanguage == AppLanguage.KOREAN) "숫자 - 갯수" else "Number → Count")
+        Spacer(modifier = Modifier.weight(1f))
+
+        // Right: difficulty toggle
+        Row(
+            modifier = Modifier
+                .clip(RoundedCornerShape(20.dp))
+                .background(SegmentTrack)
+        ) {
+            listOf(5, 10).forEach { n ->
+                SegmentChip(
+                    text = "1–$n",
+                    selected = maxNumber == n,
+                    fontSize = if (compact) 13.sp else 14.sp,
+                    hPad = if (compact) 12.dp else 14.dp,
+                    vPad = if (compact) 6.dp else 7.dp,
+                ) { onSetMaxNumber(n) }
             }
         }
 
+        // Settings gear
+        Box(
+            modifier = Modifier
+                .clip(CircleShape)
+                .background(AppOrange.copy(alpha = 0.12f))
+                .clickable { onOpenSettings() }
+                .padding(if (compact) 6.dp else 8.dp),
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(
+                imageVector = Icons.Filled.Settings,
+                contentDescription = if (appLanguage == AppLanguage.KOREAN) "설정" else "Settings",
+                tint = AppOrange,
+                modifier = Modifier.size(if (compact) 18.dp else 24.dp)
+            )
+        }
+    }
+}
+
+@Composable
+private fun SegmentChip(
+    text: String,
+    selected: Boolean,
+    fontSize: TextUnit,
+    hPad: Dp,
+    vPad: Dp,
+    onClick: () -> Unit,
+) {
+    Box(
+        modifier = Modifier
+            .clip(RoundedCornerShape(20.dp))
+            .background(if (selected) AppOrange else Color.Transparent)
+            .clickable { onClick() }
+            .padding(horizontal = hPad, vertical = vPad),
+        contentAlignment = Alignment.Center
+    ) {
         Text(
-            text = (1..min(score, 10)).joinToString(" ") { "★" },
-            color = Color(0xFFFFD600),
+            text = text,
+            fontSize = fontSize,
             fontWeight = FontWeight.Bold,
-            fontSize = if (compact) 14.sp else 16.sp
+            color = if (selected) Color.White else SegmentInactiveText,
+            textAlign = TextAlign.Center,
+            maxLines = 2
         )
     }
 }
@@ -518,45 +642,43 @@ private fun TopBar(
 @Composable
 private fun TargetPanel(
     quizMode: QuizMode,
-    gameTargetNumber: Int,
+    targetNumber: Int,
     theme: Theme,
-    highlightedCount: Int,
+    borderColor: Color,
     showingCountHint: Boolean,
-    hintWord: String,
-    numberFont: androidx.compose.ui.unit.TextUnit,
+    highlightedCount: Int,
+    numberFont: TextUnit,
+    cornerRadius: Dp,
     modifier: Modifier,
 ) {
-    Column(
+    val shape = RoundedCornerShape(cornerRadius)
+    val strokeColor = if (showingCountHint) AppOrange else borderColor
+    val strokeWidth = if (showingCountHint) 8.dp else 6.dp
+
+    Box(
         modifier = modifier
-            .background(Color.White, RoundedCornerShape(26.dp))
+            .shadow(elevation = 10.dp, shape = shape, clip = false)
+            .background(Color.White, shape)
+            .border(strokeWidth, strokeColor, shape)
             .padding(18.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(10.dp)
+        contentAlignment = Alignment.Center
     ) {
         if (quizMode == QuizMode.NUMBER_TO_OBJECTS) {
-            val color = theme.colors.firstOrNull() ?: Color(0xFFFF6A00)
             Text(
-                text = gameTargetNumber.toString(),
-                color = color,
+                text = targetNumber.toString(),
+                color = borderColor,
                 fontSize = numberFont,
                 fontWeight = FontWeight.Black,
                 textAlign = TextAlign.Center,
-                modifier = Modifier.fillMaxWidth(),
+                maxLines = 1,
             )
         } else {
             AnswerCardView(
-                count = gameTargetNumber,
+                count = targetNumber,
                 theme = theme,
                 highlightedCount = highlightedCount,
-                emphasizeHint = showingCountHint
-            )
-        }
-
-        if (showingCountHint && hintWord.isNotBlank()) {
-            Text(
-                text = hintWord,
-                color = Color(0xFFFF6A00),
-                fontWeight = FontWeight.Bold
+                emphasizeHint = showingCountHint,
+                iconScale = 1.6f
             )
         }
     }
@@ -564,55 +686,44 @@ private fun TargetPanel(
 
 @Composable
 private fun OptionsGrid(
-    optionHeight: androidx.compose.ui.unit.Dp,
+    quizMode: QuizMode,
+    theme: Theme,
     optionValues: List<Int>,
     optionColors: List<Color>,
+    optionHeight: Dp,
+    gap: Dp,
     selectedOption: Int?,
     isCorrect: Boolean?,
     shaking: Boolean,
     wrongIndex: Int?,
     onTap: (Int, Int) -> Unit,
+    modifier: Modifier = Modifier,
 ) {
-    val opt0 = optionValues[0]
-    val opt1 = optionValues[1]
-    val opt2 = optionValues[2]
-    val opt3 = optionValues[3]
+    val fallbackColors = listOf(
+        Color(0xFFFF9800), Color(0xFF26A69A), Color(0xFF7E57C2), Color(0xFFE53935)
+    )
 
-    Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
-        OptionCardView(
-            value = opt0,
-            color = optionColors.getOrElse(0) { Color(0xFFFF9800) },
-            selected = selectedOption == opt0,
-            correct = isCorrect,
-            shaking = shaking && wrongIndex == 0,
-            height = optionHeight,
-        ) { onTap(opt0, 0) }
-        OptionCardView(
-            value = opt1,
-            color = optionColors.getOrElse(1) { Color(0xFF26A69A) },
-            selected = selectedOption == opt1,
-            correct = isCorrect,
-            shaking = shaking && wrongIndex == 1,
-            height = optionHeight,
-        ) { onTap(opt1, 1) }
-    }
-    Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
-        OptionCardView(
-            value = opt2,
-            color = optionColors.getOrElse(2) { Color(0xFF7E57C2) },
-            selected = selectedOption == opt2,
-            correct = isCorrect,
-            shaking = shaking && wrongIndex == 2,
-            height = optionHeight,
-        ) { onTap(opt2, 2) }
-        OptionCardView(
-            value = opt3,
-            color = optionColors.getOrElse(3) { Color(0xFFE53935) },
-            selected = selectedOption == opt3,
-            correct = isCorrect,
-            shaking = shaking && wrongIndex == 3,
-            height = optionHeight,
-        ) { onTap(opt3, 3) }
+    Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(gap)) {
+        for (rowStart in listOf(0, 2)) {
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(gap),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                for (idx in rowStart until rowStart + 2) {
+                    val value = optionValues[idx]
+                    OptionCell(
+                        quizMode = quizMode,
+                        theme = theme,
+                        value = value,
+                        color = optionColors.getOrElse(idx) { fallbackColors[idx % fallbackColors.size] },
+                        selected = selectedOption == value,
+                        correct = isCorrect,
+                        shaking = shaking && wrongIndex == idx,
+                        height = optionHeight,
+                    ) { onTap(value, idx) }
+                }
+            }
+        }
     }
 }
 
@@ -645,6 +756,7 @@ private fun AnswerCardView(
     theme: Theme,
     highlightedCount: Int,
     emphasizeHint: Boolean,
+    iconScale: Float = 1f,
 ) {
     val pr = when {
         count <= 3 -> count
@@ -660,16 +772,18 @@ private fun AnswerCardView(
         rem -= n
     }
 
-    val iconSize = when {
-        count <= 4 -> 36.sp
-        count <= 6 -> 32.sp
-        else -> 28.sp
+    val baseIcon = when {
+        count <= 4 -> 36f
+        count <= 6 -> 32f
+        else -> 28f
     }
-    val iconSpacing = when {
-        count <= 4 -> 10.dp
-        count <= 6 -> 9.dp
-        else -> 8.dp
+    val baseSpacing = when {
+        count <= 4 -> 10f
+        count <= 6 -> 9f
+        else -> 8f
     }
+    val iconSize = (baseIcon * iconScale).coerceAtMost(72f).sp
+    val iconSpacing = (baseSpacing * iconScale).coerceIn(6f, 18f).dp
 
     Column(verticalArrangement = Arrangement.spacedBy(iconSpacing)) {
         var indexStart = 1
@@ -695,20 +809,25 @@ private fun AnswerCardView(
 }
 
 @Composable
-private fun RowScope.OptionCardView(
+private fun RowScope.OptionCell(
+    quizMode: QuizMode,
+    theme: Theme,
     value: Int,
     color: Color,
     selected: Boolean,
     correct: Boolean?,
     shaking: Boolean,
-    height: androidx.compose.ui.unit.Dp,
+    height: Dp,
     onClick: () -> Unit,
 ) {
-    val borderColor = when {
-        !selected -> Color(0xFFCCCCCC)
-        correct == true -> Color(0xFF22C55E)
-        correct == false -> Color(0xFFEF4444)
-        else -> Color(0xFFCCCCCC)
+    val shape = RoundedCornerShape(24.dp)
+    val borderWidth: Dp
+    val borderColor: Color
+    when {
+        !selected -> { borderWidth = 2.5.dp; borderColor = Color(0xFFD1D1D1) }
+        correct == true -> { borderWidth = 4.dp; borderColor = Color(0xFF22C55E) }
+        correct == false -> { borderWidth = 4.dp; borderColor = Color(0xFFEF4444) }
+        else -> { borderWidth = 2.5.dp; borderColor = Color(0xFFD1D1D1) }
     }
     val bg = when {
         !selected -> Color.White
@@ -720,7 +839,7 @@ private fun RowScope.OptionCardView(
     val numberFont = when {
         height >= 200.dp -> 96.sp
         height >= 160.dp -> 84.sp
-        height >= 130.dp -> 66.sp
+        height >= 130.dp -> 70.sp
         else -> 54.sp
     }
 
@@ -729,19 +848,29 @@ private fun RowScope.OptionCardView(
             .weight(1f)
             .height(height)
             .offset(x = if (shaking) 8.dp else 0.dp)
-            .background(bg, RoundedCornerShape(22.dp))
+            .shadow(elevation = 8.dp, shape = shape, clip = false)
+            .background(bg, shape)
+            .border(borderWidth, borderColor, shape)
             .clickable { onClick() },
         contentAlignment = Alignment.Center,
     ) {
-        Text(
-            text = value.toString(),
-            fontSize = numberFont,
-            color = color,
-            fontWeight = FontWeight.Black,
-            textAlign = TextAlign.Center,
-            modifier = Modifier.fillMaxWidth(),
-            maxLines = 1,
-        )
+        if (quizMode == QuizMode.NUMBER_TO_OBJECTS) {
+            AnswerCardView(
+                count = value,
+                theme = theme,
+                highlightedCount = 0,
+                emphasizeHint = false
+            )
+        } else {
+            Text(
+                text = value.toString(),
+                fontSize = numberFont,
+                color = color,
+                fontWeight = FontWeight.Black,
+                textAlign = TextAlign.Center,
+                maxLines = 1,
+            )
+        }
     }
 }
 
