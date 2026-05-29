@@ -1,4 +1,4 @@
-package com.example.numbercount.audio
+package com.mrnoh99.numbercount.audio
 
 import android.content.Context
 import android.media.AudioAttributes
@@ -7,8 +7,8 @@ import android.media.AudioRecord
 import android.media.MediaPlayer
 import android.media.MediaRecorder.AudioSource
 import androidx.annotation.WorkerThread
-import com.example.numbercount.AppLanguage
-import com.example.numbercount.R
+import com.mrnoh99.numbercount.AppLanguage
+import com.mrnoh99.numbercount.R
 import java.io.ByteArrayOutputStream
 import java.io.File
 import java.io.FileOutputStream

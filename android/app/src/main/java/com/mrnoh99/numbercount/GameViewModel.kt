@@ -1,4 +1,4 @@
-package com.example.numbercount
+package com.mrnoh99.numbercount
 
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -6,9 +6,9 @@ import androidx.compose.runtime.setValue
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
-import com.example.numbercount.audio.AudioController
-import com.example.numbercount.audio.FeedbackKind
-import com.example.numbercount.audio.FeedbackRecorder
+import com.mrnoh99.numbercount.audio.AudioController
+import com.mrnoh99.numbercount.audio.FeedbackKind
+import com.mrnoh99.numbercount.audio.FeedbackRecorder
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch

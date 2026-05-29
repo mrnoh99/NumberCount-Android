@@ -1,4 +1,4 @@
-package com.example.numbercount.ui
+package com.mrnoh99.numbercount.ui
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -37,11 +37,11 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.example.numbercount.AppLanguage
-import com.example.numbercount.ItemCategory
-import com.example.numbercount.audio.AudioController
-import com.example.numbercount.audio.FeedbackKind
-import com.example.numbercount.audio.FeedbackRecorder
+import com.mrnoh99.numbercount.AppLanguage
+import com.mrnoh99.numbercount.ItemCategory
+import com.mrnoh99.numbercount.audio.AudioController
+import com.mrnoh99.numbercount.audio.FeedbackKind
+import com.mrnoh99.numbercount.audio.FeedbackRecorder
 import java.util.Locale
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch

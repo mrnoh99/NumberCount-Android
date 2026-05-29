@@ -1,4 +1,4 @@
-package com.example.numbercount
+package com.mrnoh99.numbercount
 
 import android.graphics.Color
 import android.os.Bundle
@@ -7,7 +7,7 @@ import androidx.activity.SystemBarStyle
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.viewModels
-import com.example.numbercount.ui.NumberCountApp
+import com.mrnoh99.numbercount.ui.NumberCountApp
 
 class MainActivity : ComponentActivity() {
     private val audioViewModel: AppAudioViewModel by viewModels()

@@ -1,10 +1,10 @@
-package com.example.numbercount
+package com.mrnoh99.numbercount
 
 import android.app.Application
 import android.content.Context
 import androidx.lifecycle.AndroidViewModel
-import com.example.numbercount.audio.AudioController
-import com.example.numbercount.audio.FeedbackRecorder
+import com.mrnoh99.numbercount.audio.AudioController
+import com.mrnoh99.numbercount.audio.FeedbackRecorder
 
 class AppAudioViewModel(application: Application) : AndroidViewModel(application) {
     private val prefs = application.getSharedPreferences("numbercount_prefs", Context.MODE_PRIVATE)

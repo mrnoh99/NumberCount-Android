@@ -1,4 +1,4 @@
-package com.example.numbercount.audio
+package com.mrnoh99.numbercount.audio
 
 import android.content.Context
 import android.media.AudioAttributes
@@ -6,8 +6,8 @@ import android.media.MediaPlayer
 import android.media.SoundPool
 import android.speech.tts.TextToSpeech
 import androidx.annotation.RawRes
-import com.example.numbercount.AppLanguage
-import com.example.numbercount.R
+import com.mrnoh99.numbercount.AppLanguage
+import com.mrnoh99.numbercount.R
 import java.util.Locale
 import java.util.UUID
 import java.util.concurrent.atomic.AtomicBoolean

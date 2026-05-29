@@ -4,11 +4,11 @@ plugins {
 }
 
 android {
-    namespace = "com.example.numbercount"
+    namespace = "com.mrnoh99.numbercount"
     compileSdk = 36
 
     defaultConfig {
-        applicationId = "com.example.numbercount"
+        applicationId = "com.mrnoh99.numbercount"
         minSdk = 24
         targetSdk = 36
         versionCode = 1

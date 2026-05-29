@@ -1,4 +1,4 @@
-package com.example.numbercount
+package com.mrnoh99.numbercount
 
 import androidx.compose.ui.graphics.Color
 import kotlin.math.min

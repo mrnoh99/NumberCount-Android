@@ -1,4 +1,4 @@
-package com.example.numbercount.ui
+package com.mrnoh99.numbercount.ui
 
 import android.Manifest
 import android.app.Application
@@ -74,15 +74,15 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.Icon
-import com.example.numbercount.AppAudioViewModel
-import com.example.numbercount.GameViewModel
-import com.example.numbercount.numColors
-import com.example.numbercount.AppLanguage
-import com.example.numbercount.ItemCategory
-import com.example.numbercount.QuizMode
-import com.example.numbercount.Theme
-import com.example.numbercount.ThemeCatalog
-import com.example.numbercount.ui.SettingsScreen
+import com.mrnoh99.numbercount.AppAudioViewModel
+import com.mrnoh99.numbercount.GameViewModel
+import com.mrnoh99.numbercount.numColors
+import com.mrnoh99.numbercount.AppLanguage
+import com.mrnoh99.numbercount.ItemCategory
+import com.mrnoh99.numbercount.QuizMode
+import com.mrnoh99.numbercount.Theme
+import com.mrnoh99.numbercount.ThemeCatalog
+import com.mrnoh99.numbercount.ui.SettingsScreen
 import kotlin.math.min
 import kotlin.random.Random
 
