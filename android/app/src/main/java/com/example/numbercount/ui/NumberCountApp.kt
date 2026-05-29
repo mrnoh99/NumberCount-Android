@@ -347,7 +347,14 @@ fun NumberCountApp(context: Context) {
                 if (wideSplit) {
                     val gap = if (phoneLandscape) 12.dp else 24.dp
                     val rightPanelW = if (phoneLandscape) minOf(w * 0.46f, 320.dp) else minOf(w * 0.46f, 560.dp)
-                    val optionSide = minOf((rightPanelW - gap) / 2f, (h - 120.dp) / 2f).coerceIn(72.dp, 260.dp)
+                    val maxOptionSide = minOf((rightPanelW - gap) / 2f, (h - 120.dp) / 2f).coerceIn(72.dp, 260.dp)
+                    val optionSide = if (quizMode == QuizMode.NUMBER_TO_OBJECTS) {
+                        // Grow the answer card with the number of objects, capped to the space.
+                        val rows = answerRows(game.options.maxOrNull() ?: 1)
+                        (56.dp + 56.dp * rows).coerceIn(90.dp, maxOptionSide)
+                    } else {
+                        maxOptionSide
+                    }
                     val targetSide = minOf((w - rightPanelW - gap) * 0.9f, h * 0.74f).coerceAtMost(560.dp)
                     Row(
                         modifier = Modifier
@@ -413,7 +420,16 @@ fun NumberCountApp(context: Context) {
                     val gridWidth = if (isTablet) minOf(w * 0.82f, 560.dp) else w
                     val gap = if (isTablet) 16.dp else 12.dp
                     val optionSide = (gridWidth - gap) / 2f
-                    val optionHeight = if (isTablet) optionSide.coerceIn(120.dp, 240.dp) else 110.dp
+                    val optionHeight = if (quizMode == QuizMode.NUMBER_TO_OBJECTS) {
+                        // Grow the answer card with the number of objects it must show.
+                        val rows = answerRows(game.options.maxOrNull() ?: 1)
+                        val perRow = if (isTablet) 64.dp else 52.dp
+                        (44.dp + perRow * rows).coerceIn(110.dp, if (isTablet) 320.dp else 280.dp)
+                    } else if (isTablet) {
+                        optionSide.coerceIn(120.dp, 240.dp)
+                    } else {
+                        110.dp
+                    }
                     val targetSide = if (isTablet) minOf(w * 0.6f, h * 0.34f) else minOf(w * 0.82f, h * 0.34f)
                     val gridModifier = if (isTablet) Modifier.width(gridWidth) else Modifier.fillMaxWidth()
 
@@ -825,6 +841,17 @@ private fun CelebrationOverlay(number: Int, comment: String, color: Color) {
     }
 }
 
+private fun answerColumns(count: Int): Int = when {
+    count <= 3 -> count.coerceAtLeast(1)
+    count <= 6 -> 3
+    else -> 4
+}
+
+private fun answerRows(count: Int): Int {
+    val pr = answerColumns(count)
+    return ((count + pr - 1) / pr).coerceAtLeast(1)
+}
+
 @Composable
 private fun AnswerCardView(
     count: Int,
@@ -833,11 +860,7 @@ private fun AnswerCardView(
     emphasizeHint: Boolean,
     iconScale: Float = 1f,
 ) {
-    val pr = when {
-        count <= 3 -> count
-        count <= 6 -> 3
-        else -> 4
-    }
+    val pr = answerColumns(count)
 
     var rem = count
     val rows = mutableListOf<Int>()
