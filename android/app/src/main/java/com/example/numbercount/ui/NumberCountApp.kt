@@ -522,92 +522,167 @@ private fun TopBar(
     onSetMaxNumber: (Int) -> Unit,
     onSetMode: (QuizMode) -> Unit,
 ) {
-    val modeFont = if (compact) 14.sp else 18.sp
+    BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
+        // On narrow screens (phones) a single row overflows and the difficulty
+        // buttons get pushed off-screen, so they stop receiving touches. Stack
+        // the controls vertically instead.
+        val stacked = maxWidth < 600.dp
 
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = if (compact) 10.dp else 16.dp, vertical = if (compact) 6.dp else 10.dp),
-        verticalAlignment = Alignment.Top,
-        horizontalArrangement = Arrangement.spacedBy(if (compact) 6.dp else 12.dp)
-    ) {
-        Spacer(modifier = Modifier.weight(1f))
-
-        // Center: mode toggle + score stars
-        Column(
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(if (compact) 6.dp else 8.dp)
-        ) {
+        if (stacked) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 12.dp, vertical = 8.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    DifficultyToggle(maxNumber, fontSize = 14.sp, hPad = 14.dp, vPad = 7.dp, onSetMaxNumber)
+                    Spacer(modifier = Modifier.weight(1f))
+                    ScoreStars(score, starSize = 18.sp, rowHeight = 22.dp)
+                    Spacer(modifier = Modifier.width(8.dp))
+                    SettingsGear(appLanguage, iconSize = 22.dp, pad = 7.dp, onOpenSettings)
+                }
+                ModeToggle(appLanguage, quizMode, fontSize = 16.sp, hPad = 18.dp, vPad = 9.dp, onSetMode)
+            }
+        } else {
             Row(
                 modifier = Modifier
-                    .clip(RoundedCornerShape(20.dp))
-                    .background(SegmentTrack)
+                    .fillMaxWidth()
+                    .padding(horizontal = if (compact) 10.dp else 16.dp, vertical = if (compact) 6.dp else 10.dp),
+                verticalAlignment = Alignment.Top,
+                horizontalArrangement = Arrangement.spacedBy(if (compact) 6.dp else 12.dp)
             ) {
-                SegmentChip(
-                    text = if (appLanguage == AppLanguage.KOREAN) "갯수 - 숫자" else "Count → Number",
-                    selected = quizMode == QuizMode.OBJECTS_TO_NUMBER,
-                    fontSize = modeFont,
-                    hPad = if (compact) 12.dp else 22.dp,
-                    vPad = if (compact) 8.dp else 10.dp,
-                ) { onSetMode(QuizMode.OBJECTS_TO_NUMBER) }
-                SegmentChip(
-                    text = if (appLanguage == AppLanguage.KOREAN) "숫자 - 갯수" else "Number → Count",
-                    selected = quizMode == QuizMode.NUMBER_TO_OBJECTS,
-                    fontSize = modeFont,
-                    hPad = if (compact) 12.dp else 22.dp,
-                    vPad = if (compact) 8.dp else 10.dp,
-                ) { onSetMode(QuizMode.NUMBER_TO_OBJECTS) }
-            }
-
-            Row(
-                horizontalArrangement = Arrangement.spacedBy(4.dp),
-                modifier = Modifier.height(if (compact) 20.dp else 24.dp)
-            ) {
-                repeat(min(score, 10)) {
-                    Text(
-                        text = "★",
-                        color = Color(0xFFFFCC00),
-                        fontSize = if (compact) 16.sp else 20.sp
+                Spacer(modifier = Modifier.weight(1f))
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(if (compact) 6.dp else 8.dp)
+                ) {
+                    ModeToggle(
+                        appLanguage, quizMode,
+                        fontSize = if (compact) 14.sp else 18.sp,
+                        hPad = if (compact) 12.dp else 22.dp,
+                        vPad = if (compact) 8.dp else 10.dp,
+                        onSetMode
+                    )
+                    ScoreStars(
+                        score,
+                        starSize = if (compact) 16.sp else 20.sp,
+                        rowHeight = if (compact) 20.dp else 24.dp
                     )
                 }
-            }
-        }
-
-        Spacer(modifier = Modifier.weight(1f))
-
-        // Right: difficulty toggle
-        Row(
-            modifier = Modifier
-                .clip(RoundedCornerShape(20.dp))
-                .background(SegmentTrack)
-        ) {
-            listOf(5, 10).forEach { n ->
-                SegmentChip(
-                    text = "1–$n",
-                    selected = maxNumber == n,
+                Spacer(modifier = Modifier.weight(1f))
+                DifficultyToggle(
+                    maxNumber,
                     fontSize = if (compact) 13.sp else 14.sp,
                     hPad = if (compact) 12.dp else 14.dp,
                     vPad = if (compact) 6.dp else 7.dp,
-                ) { onSetMaxNumber(n) }
+                    onSetMaxNumber
+                )
+                SettingsGear(
+                    appLanguage,
+                    iconSize = if (compact) 18.dp else 24.dp,
+                    pad = if (compact) 6.dp else 8.dp,
+                    onOpenSettings
+                )
             }
         }
+    }
+}
 
-        // Settings gear
-        Box(
-            modifier = Modifier
-                .clip(CircleShape)
-                .background(AppOrange.copy(alpha = 0.12f))
-                .clickable { onOpenSettings() }
-                .padding(if (compact) 6.dp else 8.dp),
-            contentAlignment = Alignment.Center
-        ) {
-            Icon(
-                imageVector = Icons.Filled.Settings,
-                contentDescription = if (appLanguage == AppLanguage.KOREAN) "설정" else "Settings",
-                tint = AppOrange,
-                modifier = Modifier.size(if (compact) 18.dp else 24.dp)
-            )
+@Composable
+private fun ModeToggle(
+    appLanguage: AppLanguage,
+    quizMode: QuizMode,
+    fontSize: TextUnit,
+    hPad: Dp,
+    vPad: Dp,
+    onSetMode: (QuizMode) -> Unit,
+) {
+    Row(
+        modifier = Modifier
+            .clip(RoundedCornerShape(20.dp))
+            .background(SegmentTrack)
+    ) {
+        SegmentChip(
+            text = if (appLanguage == AppLanguage.KOREAN) "갯수 - 숫자" else "Count → Number",
+            selected = quizMode == QuizMode.OBJECTS_TO_NUMBER,
+            fontSize = fontSize,
+            hPad = hPad,
+            vPad = vPad,
+        ) { onSetMode(QuizMode.OBJECTS_TO_NUMBER) }
+        SegmentChip(
+            text = if (appLanguage == AppLanguage.KOREAN) "숫자 - 갯수" else "Number → Count",
+            selected = quizMode == QuizMode.NUMBER_TO_OBJECTS,
+            fontSize = fontSize,
+            hPad = hPad,
+            vPad = vPad,
+        ) { onSetMode(QuizMode.NUMBER_TO_OBJECTS) }
+    }
+}
+
+@Composable
+private fun DifficultyToggle(
+    maxNumber: Int,
+    fontSize: TextUnit,
+    hPad: Dp,
+    vPad: Dp,
+    onSetMaxNumber: (Int) -> Unit,
+) {
+    Row(
+        modifier = Modifier
+            .clip(RoundedCornerShape(20.dp))
+            .background(SegmentTrack)
+    ) {
+        listOf(5, 10).forEach { n ->
+            SegmentChip(
+                text = "1–$n",
+                selected = maxNumber == n,
+                fontSize = fontSize,
+                hPad = hPad,
+                vPad = vPad,
+            ) { onSetMaxNumber(n) }
         }
+    }
+}
+
+@Composable
+private fun ScoreStars(score: Int, starSize: TextUnit, rowHeight: Dp) {
+    Row(
+        horizontalArrangement = Arrangement.spacedBy(4.dp),
+        modifier = Modifier.height(rowHeight),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        repeat(min(score, 10)) {
+            Text(text = "★", color = Color(0xFFFFCC00), fontSize = starSize)
+        }
+    }
+}
+
+@Composable
+private fun SettingsGear(
+    appLanguage: AppLanguage,
+    iconSize: Dp,
+    pad: Dp,
+    onOpenSettings: () -> Unit,
+) {
+    Box(
+        modifier = Modifier
+            .clip(CircleShape)
+            .background(AppOrange.copy(alpha = 0.12f))
+            .clickable { onOpenSettings() }
+            .padding(pad),
+        contentAlignment = Alignment.Center
+    ) {
+        Icon(
+            imageVector = Icons.Filled.Settings,
+            contentDescription = if (appLanguage == AppLanguage.KOREAN) "설정" else "Settings",
+            tint = AppOrange,
+            modifier = Modifier.size(iconSize)
+        )
     }
 }
 

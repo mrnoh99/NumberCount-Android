@@ -82,18 +82,43 @@ class FeedbackRecorder(
 
         val channelConfig = AudioFormat.CHANNEL_IN_MONO
         val encoding = AudioFormat.ENCODING_PCM_16BIT
-        val minBuf = AudioRecord.getMinBufferSize(sampleRate, channelConfig, encoding)
+        val rawMinBuf = AudioRecord.getMinBufferSize(sampleRate, channelConfig, encoding)
+        val minBuf = if (rawMinBuf > 0) rawMinBuf else sampleRate * 2 // 1s fallback
 
-        val record = AudioRecord(
-            /* audioSource = */ android.media.MediaRecorder.AudioSource.MIC,
-            sampleRate,
-            channelConfig,
-            encoding,
-            minBuf,
-        )
+        val record = try {
+            AudioRecord(
+                /* audioSource = */ android.media.MediaRecorder.AudioSource.MIC,
+                sampleRate,
+                channelConfig,
+                encoding,
+                minBuf,
+            )
+        } catch (_: Exception) {
+            null
+        }
+
+        // Bail out cleanly if the mic could not be acquired (e.g. permission revoked
+        // or device busy) instead of silently leaving the UI in a recording state.
+        if (record == null || record.state != AudioRecord.STATE_INITIALIZED) {
+            try { record?.release() } catch (_: Exception) {}
+            audioRecord = null
+            isRecordingInternal.set(false)
+            _isRecording.value = false
+            audioController.resumeBgm()
+            return
+        }
         audioRecord = record
 
-        record.startRecording()
+        try {
+            record.startRecording()
+        } catch (_: Exception) {
+            try { record.release() } catch (_: Exception) {}
+            audioRecord = null
+            isRecordingInternal.set(false)
+            _isRecording.value = false
+            audioController.resumeBgm()
+            return
+        }
 
         recordJob = scope.launch(Dispatchers.IO) {
             val buf = ByteArray(minBuf)

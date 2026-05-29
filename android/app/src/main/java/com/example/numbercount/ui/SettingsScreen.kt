@@ -1,16 +1,21 @@
 package com.example.numbercount.ui
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.Button
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.MaterialTheme
@@ -25,8 +30,10 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.example.numbercount.AppLanguage
 import com.example.numbercount.ItemCategory
@@ -54,15 +61,25 @@ fun SettingsScreen(
     onBgmVolumeChange: (Float) -> Unit,
 ) {
     val isRecording by feedbackRecorder.isRecording.collectAsState()
+    // Observe revision so the rows refresh after a recording is saved or deleted.
+    val revision by feedbackRecorder.revision.collectAsState()
     var activeSlot by remember { mutableStateOf<FeedbackSlot?>(null) }
 
+    val hasCorrectKo = remember(revision) { feedbackRecorder.hasRecording(FeedbackKind.CORRECT, AppLanguage.KOREAN) }
+    val hasCorrectEn = remember(revision) { feedbackRecorder.hasRecording(FeedbackKind.CORRECT, AppLanguage.ENGLISH) }
+    val hasWrongKo = remember(revision) { feedbackRecorder.hasRecording(FeedbackKind.WRONG, AppLanguage.KOREAN) }
+    val hasWrongEn = remember(revision) { feedbackRecorder.hasRecording(FeedbackKind.WRONG, AppLanguage.ENGLISH) }
+
     val cream = Color(0xFFFFF6E6)
-    val accent = Color(0xFFFF6A00)
+    val accent = Color(0xFFFF9500)
     val muted = Color(0xFF777777)
 
     Column(
         modifier = Modifier
+            .fillMaxWidth()
             .background(cream)
+            .verticalScroll(rememberScrollState())
+            .navigationBarsPadding()
             .padding(20.dp)
     ) {
         Text(
@@ -84,16 +101,14 @@ fun SettingsScreen(
         Text(text = if (appLanguage == AppLanguage.KOREAN) "언어" else "Language", color = accent)
         Spacer(Modifier.height(8.dp))
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            Button(
-                modifier = Modifier.weight(1f),
-                onClick = { onAppLanguageChange(AppLanguage.KOREAN) },
-                enabled = appLanguage != AppLanguage.KOREAN
-            ) { Text("한국어") }
-            Button(
-                modifier = Modifier.weight(1f),
-                onClick = { onAppLanguageChange(AppLanguage.ENGLISH) },
-                enabled = appLanguage != AppLanguage.ENGLISH
-            ) { Text("English") }
+            ChoiceButton(
+                text = "한국어",
+                selected = appLanguage == AppLanguage.KOREAN,
+            ) { onAppLanguageChange(AppLanguage.KOREAN) }
+            ChoiceButton(
+                text = "English",
+                selected = appLanguage == AppLanguage.ENGLISH,
+            ) { onAppLanguageChange(AppLanguage.ENGLISH) }
         }
 
         Spacer(Modifier.height(18.dp))
@@ -192,7 +207,7 @@ fun SettingsScreen(
         FeedbackRow(
             slot = FeedbackSlot.CORRECT_KO,
             title = if (appLanguage == AppLanguage.KOREAN) "정답 · 한국어" else "Correct · Korean",
-            hasRecording = feedbackRecorder.hasRecording(FeedbackKind.CORRECT, AppLanguage.KOREAN),
+            hasRecording = hasCorrectKo,
             isRecording = isRecording && activeSlot == FeedbackSlot.CORRECT_KO,
             onRequestPermission = onRequestRecordPermission,
             isPermissionGranted = isRecordPermissionGranted,
@@ -223,7 +238,7 @@ fun SettingsScreen(
         FeedbackRow(
             slot = FeedbackSlot.CORRECT_EN,
             title = if (appLanguage == AppLanguage.KOREAN) "정답 · English" else "Correct · English",
-            hasRecording = feedbackRecorder.hasRecording(FeedbackKind.CORRECT, AppLanguage.ENGLISH),
+            hasRecording = hasCorrectEn,
             isRecording = isRecording && activeSlot == FeedbackSlot.CORRECT_EN,
             onRequestPermission = onRequestRecordPermission,
             isPermissionGranted = isRecordPermissionGranted,
@@ -254,7 +269,7 @@ fun SettingsScreen(
         FeedbackRow(
             slot = FeedbackSlot.WRONG_KO,
             title = if (appLanguage == AppLanguage.KOREAN) "오답 · 한국어" else "Wrong · Korean",
-            hasRecording = feedbackRecorder.hasRecording(FeedbackKind.WRONG, AppLanguage.KOREAN),
+            hasRecording = hasWrongKo,
             isRecording = isRecording && activeSlot == FeedbackSlot.WRONG_KO,
             onRequestPermission = onRequestRecordPermission,
             isPermissionGranted = isRecordPermissionGranted,
@@ -285,7 +300,7 @@ fun SettingsScreen(
         FeedbackRow(
             slot = FeedbackSlot.WRONG_EN,
             title = if (appLanguage == AppLanguage.KOREAN) "오답 · English" else "Wrong · English",
-            hasRecording = feedbackRecorder.hasRecording(FeedbackKind.WRONG, AppLanguage.ENGLISH),
+            hasRecording = hasWrongEn,
             isRecording = isRecording && activeSlot == FeedbackSlot.WRONG_EN,
             onRequestPermission = onRequestRecordPermission,
             isPermissionGranted = isRecordPermissionGranted,
@@ -337,7 +352,7 @@ private fun CategoryRow(
     selected: Boolean,
     onToggle: () -> Unit,
 ) {
-    val accent = Color(0xFFFF6A00)
+    val accent = Color(0xFFFF9500)
     val bg = if (selected) accent.copy(alpha = 0.12f) else Color(0xFFF1F1F1)
     val fg = if (selected) accent else Color(0xFF444444)
 
@@ -356,10 +371,66 @@ private fun CategoryRow(
             Spacer(Modifier.padding(start = 10.dp))
             Text(text = label, color = fg, fontWeight = MaterialTheme.typography.labelLarge.fontWeight)
             Spacer(Modifier.weight(1f))
-            Button(onClick = onToggle, colors = androidx.compose.material3.ButtonDefaults.buttonColors(containerColor = fg.copy(alpha = 0.0f))) {
-                Text(text = if (selected) "On" else "Off", color = fg)
+            Box(
+                modifier = Modifier
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(if (selected) accent else Color(0xFFE0E0E0))
+                    .clickable { onToggle() }
+                    .padding(horizontal = 16.dp, vertical = 6.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    text = if (selected) "On" else "Off",
+                    color = if (selected) Color.White else Color(0xFF555555),
+                    fontWeight = FontWeight.Bold
+                )
             }
         }
+    }
+}
+
+@Composable
+private fun RowScope.ChoiceButton(
+    text: String,
+    selected: Boolean,
+    onClick: () -> Unit,
+) {
+    val accent = Color(0xFFFF9500)
+    Box(
+        modifier = Modifier
+            .weight(1f)
+            .clip(RoundedCornerShape(14.dp))
+            .background(if (selected) accent else Color(0xFFEDEDED))
+            .clickable { onClick() }
+            .padding(vertical = 12.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        Text(
+            text = text,
+            color = if (selected) Color.White else Color(0xFF555555),
+            fontWeight = FontWeight.Bold
+        )
+    }
+}
+
+@Composable
+private fun RowScope.ActionButton(
+    text: String,
+    container: Color,
+    enabled: Boolean,
+    onClick: () -> Unit,
+) {
+    val bg = if (enabled) container else Color(0xFFCFCFCF)
+    Box(
+        modifier = Modifier
+            .weight(1f)
+            .clip(RoundedCornerShape(14.dp))
+            .background(bg)
+            .then(if (enabled) Modifier.clickable { onClick() } else Modifier)
+            .padding(vertical = 12.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        Text(text = text, color = Color.White, fontWeight = FontWeight.Bold)
     }
 }
 
@@ -382,18 +453,18 @@ private fun FeedbackRow(
 
         if (hasRecording) {
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                Button(
+                ActionButton(
+                    text = "Play",
+                    container = Color(0xFFFF9500),
+                    enabled = !isRecording,
                     onClick = onPlay,
+                )
+                ActionButton(
+                    text = "Delete",
+                    container = Color(0xFFE53935),
                     enabled = !isRecording,
-                    modifier = Modifier.weight(1f),
-                    shape = RoundedCornerShape(14.dp),
-                ) { Text("Play") }
-                Button(
                     onClick = onDelete,
-                    enabled = !isRecording,
-                    modifier = Modifier.weight(1f),
-                    shape = RoundedCornerShape(14.dp),
-                ) { Text("Delete") }
+                )
             }
         } else {
             HoldToRecordButton(
@@ -423,8 +494,8 @@ private fun HoldToRecordButton(
     onHoldStart: () -> Unit,
     onHoldEnd: () -> Unit,
 ) {
-    val accent = Color(0xFFFF6A00)
-    val bg = if (isRecording) Color(0xFFE53935) else accent.copy(alpha = 0.16f)
+    val accent = Color(0xFFFF9500)
+    val bg = if (isRecording) Color(0xFFE53935) else accent
 
     Card(
         modifier = Modifier
@@ -469,7 +540,7 @@ private fun BoxWithHoldArea(
         Text(
             text = if (isRecording) "Recording..." else "Hold to record",
             color = Color.White,
-            fontWeight = MaterialTheme.typography.labelLarge.fontWeight
+            fontWeight = FontWeight.Bold
         )
     }
 }
