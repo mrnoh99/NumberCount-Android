@@ -52,9 +52,6 @@ class AudioController(
     private var tts: TextToSpeech
 
     init {
-        val enabled = prefs.getBoolean(bgmEnabledKey, true)
-        val volume = prefs.getFloat(bgmVolumeKey, 0.12f).coerceIn(0f, 1f)
-
         tts = TextToSpeech(context) { status ->
             // Ensure TTS is ready; if not ready, calls to speak() will fail quietly.
             if (status != TextToSpeech.SUCCESS) {
@@ -62,12 +59,8 @@ class AudioController(
             }
         }
 
-        bgmPlayer = MediaPlayer.create(context, bgmRes)?.apply {
-            setAudioAttributes(audioAttributes)
-            isLooping = true
-            setVolume(volume, volume)
-            if (enabled) start()
-        }
+        // Prepare the player here; actual playback starts when the app is foregrounded.
+        bgmPlayer = createBgmPlayer()
 
         soundPool = SoundPool.Builder()
             .setMaxStreams(3)
@@ -81,6 +74,52 @@ class AudioController(
                     }
                 }
             }
+    }
+
+    private fun createBgmPlayer(): MediaPlayer? {
+        return try {
+            MediaPlayer().apply {
+                setAudioAttributes(audioAttributes)
+                context.resources.openRawResourceFd(bgmRes).use { afd ->
+                    setDataSource(afd.fileDescriptor, afd.startOffset, afd.length)
+                }
+                isLooping = true
+                val volume = getBgmVolume()
+                setVolume(volume, volume)
+                setOnErrorListener { player, _, _ ->
+                    try {
+                        player.release()
+                    } catch (_: Exception) {
+                    }
+                    if (bgmPlayer === player) {
+                        bgmPlayer = null
+                    }
+                    true
+                }
+                prepare()
+            }
+        } catch (_: Exception) {
+            null
+        }
+    }
+
+    private fun ensureBgmPlayer(): MediaPlayer? {
+        val existing = bgmPlayer
+        if (existing != null) return existing
+        val created = createBgmPlayer()
+        bgmPlayer = created
+        return created
+    }
+
+    private fun releaseBgmPlayer() {
+        try {
+            bgmPlayer?.let { player ->
+                if (player.isPlaying) player.stop()
+                player.release()
+            }
+        } catch (_: Exception) {
+        }
+        bgmPlayer = null
     }
 
     fun isBgmEnabled(): Boolean = prefs.getBoolean(bgmEnabledKey, true)
@@ -99,20 +138,37 @@ class AudioController(
     fun setBgmVolume(volume: Float) {
         val v = volume.coerceIn(0f, 1f)
         prefs.edit().putFloat(bgmVolumeKey, v).apply()
-        bgmPlayer?.setVolume(v, v)
+        try {
+            ensureBgmPlayer()?.setVolume(v, v)
+        } catch (_: Exception) {
+        }
     }
 
     fun pauseBgm() {
-        bgmPlayer?.pause()
+        try {
+            bgmPlayer?.pause()
+        } catch (_: Exception) {
+        }
     }
 
     fun resumeBgm() {
-        val enabled = isBgmEnabled()
-        if (!enabled) return
-        val v = prefs.getFloat(bgmVolumeKey, 0.12f).coerceIn(0f, 1f)
-        bgmPlayer?.apply {
-            setVolume(v, v)
-            if (!isPlaying) start()
+        if (!isBgmEnabled()) return
+        val volume = getBgmVolume()
+        val player = ensureBgmPlayer() ?: return
+        try {
+            player.setVolume(volume, volume)
+            if (!player.isPlaying) {
+                player.start()
+            }
+        } catch (_: Exception) {
+            releaseBgmPlayer()
+            val rebuilt = ensureBgmPlayer() ?: return
+            try {
+                rebuilt.setVolume(volume, volume)
+                rebuilt.start()
+            } catch (_: Exception) {
+                releaseBgmPlayer()
+            }
         }
     }
 
@@ -127,14 +183,7 @@ class AudioController(
             tts.shutdown()
         } catch (_: Exception) {
         }
-        try {
-            bgmPlayer?.let { player ->
-                if (player.isPlaying) player.stop()
-                player.release()
-            }
-        } catch (_: Exception) {
-        }
-        bgmPlayer = null
+        releaseBgmPlayer()
         try {
             soundPool?.release()
         } catch (_: Exception) {

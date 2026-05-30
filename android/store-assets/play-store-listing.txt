@@ -1,0 +1,54 @@
+# Google Play Console — 스토어 등록정보 (복사용)
+# Play Console → 스토어 설정 → 기본 스토어 등록정보
+
+================================================================================
+짧은 설명 (한국어, 최대 80자)
+================================================================================
+정신과 교수가 손자를 위해 직접 만든, 발달 단계에 맞춘 수 개념 학습 앱
+
+================================================================================
+전체 설명 (한국어)
+================================================================================
+정신과 교수가 자신의 손자를 위해, 발달 단계에 맞추어 직접 디자인하고 프로그래밍해서 만든 수 개념 학습 도구입니다.
+
+숫자세기(Number Count)는 화면에 나온 아이템의 개수를 세거나, 숫자에 맞는 개수를 고르는 방식으로 숫자 감각을 연습하는 교육용 퀴즈입니다.
+
+■ 이렇게 연습해요
+• 갯수 → 숫자: 아이템을 세고 맞는 숫자 고르기
+• 숫자 → 갯수: 숫자를 보고 맞는 개수 고르기
+• 난이도 1–5 / 1–10 선택
+
+■ 아이에게 맞게
+• 과일·자동차·채소 아이템 선택
+• 한국어 / English
+• 음성 안내와 정답·오답 피드백
+• 배경 음악 on/off
+• 정답·오답 멘트 직접 녹음 (기기에만 저장)
+
+휴대전화와 태블릿에서 사용할 수 있습니다.
+
+================================================================================
+Short description (English, max 80 characters)
+================================================================================
+A counting app a psychiatry professor built for his grandchild’s development.
+
+================================================================================
+Full description (English)
+================================================================================
+A number-concept learning tool personally designed and programmed by a professor of psychiatry for his grandchild, tailored to developmental stages.
+
+Number Count helps children practice number sense by counting on-screen items or choosing the count that matches a given number.
+
+■ How it works
+• Count → Number: count items and pick the right number
+• Number → Count: see a number and pick the matching count
+• Difficulty: 1–5 or 1–10
+
+■ Made for young learners
+• Choose fruits, cars, or vegetables
+• Korean and English UI
+• Spoken guidance and answer feedback
+• Optional background music
+• Record your own correct/incorrect phrases (stored on device only)
+
+Works on phones and tablets.

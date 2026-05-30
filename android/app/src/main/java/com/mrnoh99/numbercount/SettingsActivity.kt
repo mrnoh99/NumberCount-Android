@@ -30,9 +30,4 @@ class SettingsActivity : ComponentActivity() {
         }
     }
 
-    override fun onStop() {
-        super.onStop()
-        audioViewModel.audioController.pauseBgm()
-        audioViewModel.audioController.stopTts()
-    }
 }

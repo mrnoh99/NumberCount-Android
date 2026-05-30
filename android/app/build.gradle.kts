@@ -11,13 +11,17 @@ android {
         applicationId = "com.mrnoh99.numbercount"
         minSdk = 24
         targetSdk = 36
-        versionCode = 1
+        versionCode = 2
         versionName = "1.0"
     }
 
     buildTypes {
         release {
             isMinifyEnabled = false
+            ndk {
+                // Include native debug symbols in the AAB for Play Console crash reports.
+                debugSymbolLevel = "SYMBOL_TABLE"
+            }
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro",

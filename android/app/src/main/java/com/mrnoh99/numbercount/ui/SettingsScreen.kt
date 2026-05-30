@@ -7,7 +7,8 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.waitForUpOrCancellation
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -17,9 +18,8 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
@@ -43,6 +43,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
@@ -97,11 +98,14 @@ fun SettingsRoute(
         selectedCategories = selectedCategories,
         bgmEnabled = bgmEnabled,
         bgmVolume = bgmVolume,
-        isRecordPermissionGranted = recordPermissionGranted,
         audioController = audioController,
         feedbackRecorder = feedbackRecorder,
         coroutineScope = scope,
         onRequestRecordPermission = { permissionLauncher.launch(Manifest.permission.RECORD_AUDIO) },
+        hasRecordPermission = {
+            context.checkSelfPermission(Manifest.permission.RECORD_AUDIO) ==
+                PackageManager.PERMISSION_GRANTED
+        },
         onAppLanguageChange = { newLang ->
             appLanguageRaw = newLang.raw
             prefs.edit().putString(AppLanguage.storageKey, newLang.raw).apply()
@@ -123,7 +127,7 @@ fun SettingsScreen(
     selectedCategories: Set<ItemCategory>,
     bgmEnabled: Boolean,
     bgmVolume: Float,
-    isRecordPermissionGranted: Boolean,
+    hasRecordPermission: () -> Boolean,
     audioController: AudioController,
     feedbackRecorder: FeedbackRecorder,
     coroutineScope: CoroutineScope,
@@ -194,8 +198,7 @@ fun SettingsScreen(
         modifier = Modifier
             .fillMaxSize()
             .background(cream)
-            .statusBarsPadding()
-            .navigationBarsPadding(),
+            .safeDrawingPadding(),
     ) {
         Row(
             modifier = Modifier
@@ -371,9 +374,9 @@ fun SettingsScreen(
         Spacer(Modifier.height(8.dp))
         Text(
             text = if (appLanguage == AppLanguage.KOREAN)
-                "버튼을 누르고 있는 동안만 녹음됩니다. 손을 떼면 앞뒤 무음이 잘리고 저장돼요."
+                "버튼을 누르고 있는 동안만 녹음됩니다. 손을 떼면 앞뒤 무음이 잘리고 저장돼요. 조용한 곳에서 녹음해 주세요."
             else
-                "Hold the button to record. Release to trim silence and save.",
+                "Hold the button to record. Release to trim silence and save. Please record in a quiet place.",
             style = hintStyle,
         )
 
@@ -388,24 +391,31 @@ fun SettingsScreen(
             hasRecording = hasCorrectKo,
             isRecording = isRecording && activeSlot == FeedbackSlot.CORRECT_KO,
             onRequestPermission = onRequestRecordPermission,
-            isPermissionGranted = isRecordPermissionGranted,
+            hasRecordPermission = hasRecordPermission,
             onPlay = { feedbackRecorder.play(FeedbackKind.CORRECT, AppLanguage.KOREAN) {} },
             onDelete = { feedbackRecorder.deleteRecording(FeedbackKind.CORRECT, AppLanguage.KOREAN) },
             onHoldStart = {
-                activeSlot = FeedbackSlot.CORRECT_KO
-                feedbackRecorder.startRecording(
-                    scope = coroutineScope,
-                    kind = FeedbackKind.CORRECT,
-                    language = AppLanguage.KOREAN
-                )
+                if (
+                    feedbackRecorder.startRecording(
+                        scope = coroutineScope,
+                        kind = FeedbackKind.CORRECT,
+                        language = AppLanguage.KOREAN,
+                    )
+                ) {
+                    activeSlot = FeedbackSlot.CORRECT_KO
+                    true
+                } else {
+                    false
+                }
             },
             onHoldEnd = {
+                if (activeSlot != FeedbackSlot.CORRECT_KO) return@FeedbackRow
                 activeSlot = null
                 coroutineScope.launch {
                     feedbackRecorder.stopAndSave(
                         scope = coroutineScope,
                         kind = FeedbackKind.CORRECT,
-                        language = AppLanguage.KOREAN
+                        language = AppLanguage.KOREAN,
                     )
                 }
             },
@@ -422,24 +432,31 @@ fun SettingsScreen(
             hasRecording = hasCorrectEn,
             isRecording = isRecording && activeSlot == FeedbackSlot.CORRECT_EN,
             onRequestPermission = onRequestRecordPermission,
-            isPermissionGranted = isRecordPermissionGranted,
+            hasRecordPermission = hasRecordPermission,
             onPlay = { feedbackRecorder.play(FeedbackKind.CORRECT, AppLanguage.ENGLISH) {} },
             onDelete = { feedbackRecorder.deleteRecording(FeedbackKind.CORRECT, AppLanguage.ENGLISH) },
             onHoldStart = {
-                activeSlot = FeedbackSlot.CORRECT_EN
-                feedbackRecorder.startRecording(
-                    scope = coroutineScope,
-                    kind = FeedbackKind.CORRECT,
-                    language = AppLanguage.ENGLISH
-                )
+                if (
+                    feedbackRecorder.startRecording(
+                        scope = coroutineScope,
+                        kind = FeedbackKind.CORRECT,
+                        language = AppLanguage.ENGLISH,
+                    )
+                ) {
+                    activeSlot = FeedbackSlot.CORRECT_EN
+                    true
+                } else {
+                    false
+                }
             },
             onHoldEnd = {
+                if (activeSlot != FeedbackSlot.CORRECT_EN) return@FeedbackRow
                 activeSlot = null
                 coroutineScope.launch {
                     feedbackRecorder.stopAndSave(
                         scope = coroutineScope,
                         kind = FeedbackKind.CORRECT,
-                        language = AppLanguage.ENGLISH
+                        language = AppLanguage.ENGLISH,
                     )
                 }
             },
@@ -456,24 +473,31 @@ fun SettingsScreen(
             hasRecording = hasWrongKo,
             isRecording = isRecording && activeSlot == FeedbackSlot.WRONG_KO,
             onRequestPermission = onRequestRecordPermission,
-            isPermissionGranted = isRecordPermissionGranted,
+            hasRecordPermission = hasRecordPermission,
             onPlay = { feedbackRecorder.play(FeedbackKind.WRONG, AppLanguage.KOREAN) {} },
             onDelete = { feedbackRecorder.deleteRecording(FeedbackKind.WRONG, AppLanguage.KOREAN) },
             onHoldStart = {
-                activeSlot = FeedbackSlot.WRONG_KO
-                feedbackRecorder.startRecording(
-                    scope = coroutineScope,
-                    kind = FeedbackKind.WRONG,
-                    language = AppLanguage.KOREAN
-                )
+                if (
+                    feedbackRecorder.startRecording(
+                        scope = coroutineScope,
+                        kind = FeedbackKind.WRONG,
+                        language = AppLanguage.KOREAN,
+                    )
+                ) {
+                    activeSlot = FeedbackSlot.WRONG_KO
+                    true
+                } else {
+                    false
+                }
             },
             onHoldEnd = {
+                if (activeSlot != FeedbackSlot.WRONG_KO) return@FeedbackRow
                 activeSlot = null
                 coroutineScope.launch {
                     feedbackRecorder.stopAndSave(
                         scope = coroutineScope,
                         kind = FeedbackKind.WRONG,
-                        language = AppLanguage.KOREAN
+                        language = AppLanguage.KOREAN,
                     )
                 }
             },
@@ -490,24 +514,31 @@ fun SettingsScreen(
             hasRecording = hasWrongEn,
             isRecording = isRecording && activeSlot == FeedbackSlot.WRONG_EN,
             onRequestPermission = onRequestRecordPermission,
-            isPermissionGranted = isRecordPermissionGranted,
+            hasRecordPermission = hasRecordPermission,
             onPlay = { feedbackRecorder.play(FeedbackKind.WRONG, AppLanguage.ENGLISH) {} },
             onDelete = { feedbackRecorder.deleteRecording(FeedbackKind.WRONG, AppLanguage.ENGLISH) },
             onHoldStart = {
-                activeSlot = FeedbackSlot.WRONG_EN
-                feedbackRecorder.startRecording(
-                    scope = coroutineScope,
-                    kind = FeedbackKind.WRONG,
-                    language = AppLanguage.ENGLISH
-                )
+                if (
+                    feedbackRecorder.startRecording(
+                        scope = coroutineScope,
+                        kind = FeedbackKind.WRONG,
+                        language = AppLanguage.ENGLISH,
+                    )
+                ) {
+                    activeSlot = FeedbackSlot.WRONG_EN
+                    true
+                } else {
+                    false
+                }
             },
             onHoldEnd = {
+                if (activeSlot != FeedbackSlot.WRONG_EN) return@FeedbackRow
                 activeSlot = null
                 coroutineScope.launch {
                     feedbackRecorder.stopAndSave(
                         scope = coroutineScope,
                         kind = FeedbackKind.WRONG,
-                        language = AppLanguage.ENGLISH
+                        language = AppLanguage.ENGLISH,
                     )
                 }
             },
@@ -643,11 +674,11 @@ private fun FeedbackRow(
     appLanguage: AppLanguage,
     hasRecording: Boolean,
     isRecording: Boolean,
-    isPermissionGranted: Boolean,
+    hasRecordPermission: () -> Boolean,
     onRequestPermission: () -> Unit,
     onPlay: () -> Unit,
     onDelete: () -> Unit,
-    onHoldStart: () -> Unit,
+    onHoldStart: () -> Boolean,
     onHoldEnd: () -> Unit,
 ) {
     Column(modifier = Modifier.fillMaxWidth()) {
@@ -674,17 +705,11 @@ private fun FeedbackRow(
         } else {
             HoldToRecordButton(
                 isRecording = isRecording,
-                isPermissionGranted = isPermissionGranted,
                 appLanguage = appLanguage,
                 labelStyle = buttonLabelStyle,
+                hasRecordPermission = hasRecordPermission,
                 onRequestPermission = onRequestPermission,
-                onHoldStart = {
-                    if (isPermissionGranted) {
-                        onHoldStart()
-                    } else {
-                        onRequestPermission()
-                    }
-                },
+                onHoldStart = onHoldStart,
                 onHoldEnd = onHoldEnd,
             )
         }
@@ -694,11 +719,11 @@ private fun FeedbackRow(
 @Composable
 private fun HoldToRecordButton(
     isRecording: Boolean,
-    isPermissionGranted: Boolean,
     appLanguage: AppLanguage,
     labelStyle: TextStyle,
+    hasRecordPermission: () -> Boolean,
     onRequestPermission: () -> Unit,
-    onHoldStart: () -> Unit,
+    onHoldStart: () -> Boolean,
     onHoldEnd: () -> Unit,
 ) {
     val accent = Color(0xFFE08600)
@@ -706,17 +731,33 @@ private fun HoldToRecordButton(
 
     Card(
         modifier = Modifier
-            .fillMaxWidth(),
+            .fillMaxWidth()
+            .pointerInput(Unit) {
+                awaitEachGesture {
+                    val down = awaitFirstDown(requireUnconsumed = false)
+                    down.consume()
+                    val started = if (hasRecordPermission()) {
+                        onHoldStart()
+                    } else {
+                        onRequestPermission()
+                        false
+                    }
+                    try {
+                        waitForUpOrCancellation()
+                    } finally {
+                        if (started) {
+                            onHoldEnd()
+                        }
+                    }
+                }
+            },
         shape = RoundedCornerShape(16.dp),
         colors = CardDefaults.cardColors(containerColor = bg),
     ) {
         BoxWithHoldArea(
             isRecording = isRecording,
-            isPermissionGranted = isPermissionGranted,
             appLanguage = appLanguage,
             labelStyle = labelStyle,
-            onHoldStart = onHoldStart,
-            onHoldEnd = onHoldEnd,
         )
     }
 }
@@ -724,31 +765,15 @@ private fun HoldToRecordButton(
 @Composable
 private fun BoxWithHoldArea(
     isRecording: Boolean,
-    isPermissionGranted: Boolean,
     appLanguage: AppLanguage,
     labelStyle: TextStyle,
-    onHoldStart: () -> Unit,
-    onHoldEnd: () -> Unit,
 ) {
-    // Use pointer press/release lifecycle.
-    Column(
+    Box(
         modifier = Modifier
             .fillMaxWidth()
             .height(56.dp)
-            .pointerInput(isPermissionGranted, isRecording) {
-                detectTapGestures(
-                    onPress = {
-                        onHoldStart()
-                        try {
-                            tryAwaitRelease()
-                        } finally {
-                            onHoldEnd()
-                        }
-                    }
-                )
-            }
             .padding(horizontal = 16.dp, vertical = 8.dp),
-        verticalArrangement = Arrangement.Center
+        contentAlignment = Alignment.Center,
     ) {
         Text(
             text = when {

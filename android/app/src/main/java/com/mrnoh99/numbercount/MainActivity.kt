@@ -9,9 +9,6 @@ import androidx.activity.enableEdgeToEdge
 import com.mrnoh99.numbercount.ui.NumberCountApp
 
 class MainActivity : ComponentActivity() {
-    private val audioViewModel: AppAudioViewModel
-        get() = (application as NumberCountApplication).audioViewModel
-
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
@@ -28,17 +25,5 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    override fun onStop() {
-        super.onStop()
-        audioViewModel.audioController.pauseBgm()
-        audioViewModel.audioController.stopTts()
-    }
-
-    override fun onStart() {
-        super.onStart()
-        if (!audioViewModel.feedbackRecorder.isRecording.value) {
-            audioViewModel.audioController.resumeBgm()
-        }
-    }
 }
 

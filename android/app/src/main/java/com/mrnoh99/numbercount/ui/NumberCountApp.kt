@@ -448,12 +448,6 @@ private fun TopBar(
             val stackedToggleRowHeight = stackedChipVPad * 2 + 24.dp
             val stackedGearSize = if (portraitLayout) (layoutWidth * 0.055f).coerceIn(20.dp, 26.dp) else 22.dp
             val stackedGearPad = if (portraitLayout) (layoutWidth * 0.018f).coerceIn(6.dp, 9.dp) else 7.dp
-            val stackedStarSize = if (portraitLayout) {
-                (layoutWidth.value * 0.048f).coerceIn(17f, 22f).sp
-            } else {
-                19.sp
-            }
-            val stackedStarRowH = if (portraitLayout) (layoutHeight * 0.03f).coerceIn(20.dp, 26.dp) else 22.dp
 
             Column(
                 modifier = Modifier
@@ -476,8 +470,6 @@ private fun TopBar(
                         onSetMaxNumber = onSetMaxNumber,
                     )
                     Spacer(modifier = Modifier.weight(1f))
-                    ScoreStars(score, starSize = stackedStarSize, rowHeight = stackedStarRowH)
-                    Spacer(modifier = Modifier.width((layoutWidth * 0.02f).coerceIn(6.dp, 12.dp)))
                     SettingsGear(appLanguage, iconSize = stackedGearSize, pad = stackedGearPad, onOpenSettings)
                 }
                 ModeToggle(
@@ -518,11 +510,6 @@ private fun TopBar(
                     onSetMode = onSetMode,
                 )
                 Spacer(modifier = Modifier.weight(1f))
-                ScoreStars(
-                    score,
-                    starSize = starSize,
-                    rowHeight = starRowH,
-                )
                 SettingsGear(
                     appLanguage,
                     iconSize = gearSize,

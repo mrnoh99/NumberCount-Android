@@ -146,43 +146,56 @@ class GameViewModel(
                 shaking = false
             }
         } else {
-            playAnswerFeedback(FeedbackKind.WRONG, appLanguage)
             wrongIndex = idx
             shaking = true
             viewModelScope.launch {
                 delay(600L)
                 shaking = false
-                delay(1000L)
-                guidanceJob?.cancel()
-                guidanceJob = launch {
-                    startCountHint(fromWrongAnswerFlow = true, appLanguage = appLanguage)
+            }
+            playAnswerFeedback(FeedbackKind.WRONG, appLanguage) {
+                viewModelScope.launch {
+                    delay(1000L)
+                    guidanceJob?.cancel()
+                    guidanceJob = launch {
+                        startCountHint(fromWrongAnswerFlow = true, appLanguage = appLanguage)
+                    }
                 }
             }
         }
     }
 
-    private fun playAnswerFeedback(kind: FeedbackKind, appLanguage: AppLanguage) {
-        if (kind == FeedbackKind.CORRECT) {
+    private fun playAnswerFeedback(
+        kind: FeedbackKind,
+        appLanguage: AppLanguage,
+        onFinished: () -> Unit = {},
+    ) {
+        val hasCustomRecording = feedbackRecorder.hasRecording(kind, appLanguage)
+        if (kind == FeedbackKind.CORRECT && !hasCustomRecording) {
             audioController.playCorrectChime()
         }
-        if (feedbackRecorder.hasRecording(kind, appLanguage)) {
-            feedbackRecorder.play(kind, appLanguage) { }
+        if (hasCustomRecording) {
+            feedbackRecorder.play(kind, appLanguage, onFinished)
         } else {
             viewModelScope.launch {
                 val phrase = when (kind) {
                     FeedbackKind.CORRECT -> feedbackCorrectPhrase(appLanguage)
                     FeedbackKind.WRONG -> feedbackWrongPhrase(appLanguage)
                 }
-                audioController.speakBlocking(
-                    text = phrase,
-                    language = appLanguage,
-                    rate = voiceRate(appLanguage),
-                )
+                try {
+                    audioController.speakBlocking(
+                        text = phrase,
+                        language = appLanguage,
+                        rate = voiceRate(appLanguage),
+                    )
+                } finally {
+                    onFinished()
+                }
             }
         }
     }
 
     private suspend fun startCountHint(fromWrongAnswerFlow: Boolean, appLanguage: AppLanguage) {
+        feedbackRecorder.stopPlayback()
         showingCountHint = true
         highlightedCount = 0
         hintWord = ""
@@ -192,43 +205,43 @@ class GameViewModel(
         delay(leadMs)
 
         audioController.pauseBgm()
-
-        val itemLabel = if (appLanguage == AppLanguage.ENGLISH) {
-            game.theme.itemWordSingular
-        } else {
-            game.theme.itemWordSingularKO
-        }
-        hintWord = if (appLanguage == AppLanguage.ENGLISH) itemLabel.uppercase() else itemLabel
-        audioController.speakBlocking(
-            text = itemLabel,
-            language = appLanguage,
-            rate = voiceRate(appLanguage),
-        )
-        delay(250L)
-
-        for (n in 1..total) {
-            val spoken = if (appLanguage == AppLanguage.ENGLISH) englishNumberWord(n) else koreanNumberWord(n)
-            val display = if (appLanguage == AppLanguage.ENGLISH) spoken.uppercase() else n.toString()
-            highlightedCount = n
-            hintWord = display
-
+        try {
+            val itemLabel = if (appLanguage == AppLanguage.ENGLISH) {
+                game.theme.itemWordSingular
+            } else {
+                game.theme.itemWordSingularKO
+            }
+            hintWord = if (appLanguage == AppLanguage.ENGLISH) itemLabel.uppercase() else itemLabel
             audioController.speakBlocking(
-                text = spoken,
+                text = itemLabel,
                 language = appLanguage,
                 rate = voiceRate(appLanguage),
             )
-            delay(150L)
+            delay(250L)
+
+            for (n in 1..total) {
+                val spoken = if (appLanguage == AppLanguage.ENGLISH) englishNumberWord(n) else koreanNumberWord(n)
+                val display = if (appLanguage == AppLanguage.ENGLISH) spoken.uppercase() else n.toString()
+                highlightedCount = n
+                hintWord = display
+
+                audioController.speakBlocking(
+                    text = spoken,
+                    language = appLanguage,
+                    rate = voiceRate(appLanguage),
+                )
+                delay(150L)
+            }
+        } finally {
+            showingCountHint = false
+            highlightedCount = 0
+            hintWord = ""
+            selectedOption = null
+            isCorrect = null
+            wrongIndex = null
+            locked = false
+            audioController.resumeBgm()
         }
-
-        showingCountHint = false
-        highlightedCount = 0
-        hintWord = ""
-        selectedOption = null
-        isCorrect = null
-        wrongIndex = null
-        locked = false
-
-        audioController.resumeBgm()
     }
 
     override fun onCleared() {
