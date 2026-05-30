@@ -482,6 +482,7 @@ private fun TopBar(
                     fillWidth = portraitLayout,
                     onSetMode = onSetMode,
                 )
+                ScoreStars(score, starSize = starSize, rowHeight = starRowH)
             }
         } else if (!portraitLayout) {
             // Landscape: difficulty → mode → stars → settings (left to right)
@@ -510,6 +511,7 @@ private fun TopBar(
                     onSetMode = onSetMode,
                 )
                 Spacer(modifier = Modifier.weight(1f))
+                ScoreStars(score, starSize = starSize, rowHeight = starRowH)
                 SettingsGear(
                     appLanguage,
                     iconSize = gearSize,
@@ -822,11 +824,12 @@ private fun OptionsGrid(
 
     Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(gap)) {
         for (rowStart in listOf(0, 2)) {
+            if (rowStart >= optionValues.size) break
             Row(
                 horizontalArrangement = Arrangement.spacedBy(gap),
                 modifier = Modifier.fillMaxWidth()
             ) {
-                for (idx in rowStart until rowStart + 2) {
+                for (idx in rowStart until minOf(rowStart + 2, optionValues.size)) {
                     val value = optionValues[idx]
                     OptionCell(
                         quizMode = quizMode,

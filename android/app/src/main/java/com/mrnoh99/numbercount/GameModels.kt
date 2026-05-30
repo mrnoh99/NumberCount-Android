@@ -202,9 +202,9 @@ data class GameState(
 
             val count = min(3, pool.size)
             val opts = mutableListOf(target).apply { addAll(pool.take(count)) }
-            while (opts.size < 4) {
-                val extra = Random.nextInt(1, safeMax + 1)
-                if (!opts.contains(extra)) opts.add(extra)
+            for (extra in pool.drop(count)) {
+                if (opts.size >= 4) break
+                opts.add(extra)
             }
             opts.shuffle(Random)
 

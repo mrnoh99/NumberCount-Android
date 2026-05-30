@@ -10,7 +10,6 @@ import com.mrnoh99.numbercount.AppLanguage
 import com.mrnoh99.numbercount.R
 import java.util.Locale
 import java.util.UUID
-import java.util.concurrent.atomic.AtomicBoolean
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
@@ -29,8 +28,6 @@ class AudioController(
     private val correctChimeRes: Int = R.raw.correct_chime
 
     private val sfxVolume = 0.85f
-
-    private val isTtsSpeaking = AtomicBoolean(false)
 
     private val audioAttributes: AudioAttributes =
         AudioAttributes.Builder()
@@ -211,26 +208,22 @@ class AudioController(
         }
 
         val utteranceId = UUID.randomUUID().toString()
-        isTtsSpeaking.set(true)
 
         suspendCancellableCoroutine<Unit> { cont ->
             try {
-                // Set a dedicated listener for this utterance.
                 tts.setOnUtteranceProgressListener(object : android.speech.tts.UtteranceProgressListener() {
-                    override fun onStart(utteranceId: String) {
+                    override fun onStart(id: String) {
                         // no-op
                     }
 
-                    override fun onDone(utteranceId: String) {
-                        if (!cont.isCompleted) {
-                            isTtsSpeaking.set(false)
+                    override fun onDone(id: String) {
+                        if (id == utteranceId && !cont.isCompleted) {
                             cont.resume(Unit)
                         }
                     }
 
-                    override fun onError(utteranceId: String) {
-                        if (!cont.isCompleted) {
-                            isTtsSpeaking.set(false)
+                    override fun onError(id: String) {
+                        if (id == utteranceId && !cont.isCompleted) {
                             cont.resumeWithException(IllegalStateException("TTS error"))
                         }
                     }
@@ -247,7 +240,6 @@ class AudioController(
                 }
 
                 if (result != TextToSpeech.SUCCESS) {
-                    isTtsSpeaking.set(false)
                     cont.resumeWithException(IllegalStateException("TTS speak failed"))
                 }
 
@@ -256,10 +248,8 @@ class AudioController(
                         tts.stop()
                     } catch (_: Exception) {
                     }
-                    isTtsSpeaking.set(false)
                 }
             } catch (t: Throwable) {
-                isTtsSpeaking.set(false)
                 if (!cont.isCompleted) cont.resumeWithException(t)
             }
         }

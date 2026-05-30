@@ -413,7 +413,6 @@ fun SettingsScreen(
                 activeSlot = null
                 coroutineScope.launch {
                     feedbackRecorder.stopAndSave(
-                        scope = coroutineScope,
                         kind = FeedbackKind.CORRECT,
                         language = AppLanguage.KOREAN,
                     )
@@ -454,7 +453,6 @@ fun SettingsScreen(
                 activeSlot = null
                 coroutineScope.launch {
                     feedbackRecorder.stopAndSave(
-                        scope = coroutineScope,
                         kind = FeedbackKind.CORRECT,
                         language = AppLanguage.ENGLISH,
                     )
@@ -495,7 +493,6 @@ fun SettingsScreen(
                 activeSlot = null
                 coroutineScope.launch {
                     feedbackRecorder.stopAndSave(
-                        scope = coroutineScope,
                         kind = FeedbackKind.WRONG,
                         language = AppLanguage.KOREAN,
                     )
@@ -536,7 +533,6 @@ fun SettingsScreen(
                 activeSlot = null
                 coroutineScope.launch {
                     feedbackRecorder.stopAndSave(
-                        scope = coroutineScope,
                         kind = FeedbackKind.WRONG,
                         language = AppLanguage.ENGLISH,
                     )
@@ -558,7 +554,7 @@ private fun toggleCategory(
         next.add(cat)
     }
     if (next.isEmpty()) {
-        next.add(ItemCategory.FRUIT)
+        next.add(cat)
     }
     return next
 }

@@ -66,7 +66,7 @@ class GameViewModel(
         )
         val previous = settingsSnapshot
         settingsSnapshot = snapshot
-        if (previous == null || previous == snapshot) return
+        if (previous != null && previous == snapshot) return
 
         nextRound(prev = game.targetNumber, categories = categories)
     }
@@ -129,12 +129,13 @@ class GameViewModel(
             playAnswerFeedback(FeedbackKind.CORRECT, appLanguage)
             showCelebration = true
             val newScore = game.score + 1
+            val prevTarget = game.targetNumber
             viewModelScope.launch {
                 delay(2500L)
                 showCelebration = false
                 game = GameState.newRound(
                     score = newScore,
-                    prev = game.targetNumber,
+                    prev = prevTarget,
                     maxNumber = maxNumber,
                     mode = quizMode,
                     themePool = themePoolForRound(categories),
