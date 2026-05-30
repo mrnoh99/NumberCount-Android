@@ -1,0 +1,210 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  숫자세기 (NumberCount) — Vector reproduction of the current app icon
+  Canvas : 1024 × 1024  (Play Store upload size)
+  Faithfully re-draws every visible element of the existing PNG icon:
+    • warm orange-yellow gradient background
+    • three numbered circles  (pink "1", blue "2", green "3")
+    • floating white bubble decorations
+    • golden 4-pointed stars
+    • caterpillar character (bottom-left)
+-->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
+  <defs>
+
+    <!-- ══════════════════════════════
+         GRADIENTS
+         ══════════════════════════════ -->
+
+    <!-- Background: warm yellow (top-right) → coral orange (bottom-left) -->
+    <linearGradient id="bgGrad" x1="1" y1="0" x2="0" y2="1">
+      <stop offset="0%"   stop-color="#FFEC7A"/>
+      <stop offset="45%"  stop-color="#FFAC58"/>
+      <stop offset="100%" stop-color="#FF7235"/>
+    </linearGradient>
+
+    <!-- Circle 1 – hot pink/coral -->
+    <radialGradient id="c1Grad" cx="38%" cy="30%" r="68%">
+      <stop offset="0%"   stop-color="#F97098"/>
+      <stop offset="100%" stop-color="#E52860"/>
+    </radialGradient>
+
+    <!-- Circle 2 – sky blue -->
+    <radialGradient id="c2Grad" cx="38%" cy="30%" r="68%">
+      <stop offset="0%"   stop-color="#68CCEE"/>
+      <stop offset="100%" stop-color="#2898D8"/>
+    </radialGradient>
+
+    <!-- Circle 3 – emerald teal-green -->
+    <radialGradient id="c3Grad" cx="38%" cy="30%" r="68%">
+      <stop offset="0%"   stop-color="#50DC9A"/>
+      <stop offset="100%" stop-color="#22A86A"/>
+    </radialGradient>
+
+    <!-- ══════════════════════════════
+         FILTERS
+         ══════════════════════════════ -->
+
+    <!-- Soft drop shadow for the three circles -->
+    <filter id="circleShadow" x="-20%" y="-10%" width="140%" height="145%">
+      <feGaussianBlur in="SourceAlpha" stdDeviation="14" result="blur"/>
+      <feOffset dx="0" dy="16" in="blur" result="shifted"/>
+      <feFlood flood-color="#7A2000" flood-opacity="0.28" result="clr"/>
+      <feComposite in="clr" in2="shifted" operator="in" result="shadow"/>
+      <feMerge>
+        <feMergeNode in="shadow"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+
+    <!-- Shine on white bubbles -->
+    <radialGradient id="bubbleGrad" cx="38%" cy="30%" r="70%">
+      <stop offset="0%"   stop-color="#FFFFFF" stop-opacity="0.95"/>
+      <stop offset="100%" stop-color="#FFFFFF" stop-opacity="0.70"/>
+    </radialGradient>
+
+  </defs>
+
+  <!-- ══════════════════════════════════════════════════
+       1. BACKGROUND
+       ══════════════════════════════════════════════════ -->
+  <rect width="1024" height="1024" fill="url(#bgGrad)"/>
+
+  <!-- ══════════════════════════════════════════════════
+       2. FLOATING WHITE BUBBLE DECORATIONS
+          (scattered behind the numbered circles)
+       ══════════════════════════════════════════════════ -->
+
+  <!-- Large bubble – right side -->
+  <circle cx="920" cy="380" r="90"  fill="url(#bubbleGrad)" opacity="0.75"/>
+  <!-- Medium bubble – upper-left -->
+  <circle cx="108" cy="310" r="66"  fill="url(#bubbleGrad)" opacity="0.70"/>
+  <!-- Small bubble – upper-center-right -->
+  <circle cx="630" cy="128" r="36"  fill="url(#bubbleGrad)" opacity="0.65"/>
+  <!-- Small bubble – lower-right -->
+  <circle cx="950" cy="760" r="44"  fill="url(#bubbleGrad)" opacity="0.60"/>
+  <!-- Tiny bubble – lower-center -->
+  <circle cx="760" cy="920" r="26"  fill="url(#bubbleGrad)" opacity="0.55"/>
+  <!-- Tiny bubble – left mid -->
+  <circle cx="80"  cy="580" r="22"  fill="url(#bubbleGrad)" opacity="0.60"/>
+
+  <!-- ══════════════════════════════════════════════════
+       3. GOLDEN 4-POINTED STARS  (✦)
+          Helper macro: M 0,-R  L r,-r  L R,0  L r,r  L 0,R  L -r,r  L -R,0  L -r,-r Z
+          R = outer radius, r = R*0.28 (inner nub)
+       ══════════════════════════════════════════════════ -->
+
+  <!-- Star – top-left area -->
+  <path transform="translate(174,170)"
+        d="M 0,-22 L 6,-6 L 22,0 L 6,6 L 0,22 L -6,6 L -22,0 L -6,-6 Z"
+        fill="#FFD520"/>
+
+  <!-- Star – top-right area -->
+  <path transform="translate(820,148)"
+        d="M 0,-18 L 5,-5 L 18,0 L 5,5 L 0,18 L -5,5 L -18,0 L -5,-5 Z"
+        fill="#FFD520"/>
+
+  <!-- Star – between circles 1 and 2, upper-center -->
+  <path transform="translate(512,190)"
+        d="M 0,-14 L 4,-4 L 14,0 L 4,4 L 0,14 L -4,4 L -14,0 L -4,-4 Z"
+        fill="#FFD520" opacity="0.90"/>
+
+  <!-- Star – right of circle 2 -->
+  <path transform="translate(940,280)"
+        d="M 0,-16 L 4,-4 L 16,0 L 4,4 L 0,16 L -4,4 L -16,0 L -4,-4 Z"
+        fill="#FFD520"/>
+
+  <!-- Star – above circle 3 -->
+  <path transform="translate(390,548)"
+        d="M 0,-13 L 4,-4 L 13,0 L 4,4 L 0,13 L -4,4 L -13,0 L -4,-4 Z"
+        fill="#FFD520" opacity="0.85"/>
+
+  <!-- Star – bottom-right -->
+  <path transform="translate(870,830)"
+        d="M 0,-17 L 5,-5 L 17,0 L 5,5 L 0,17 L -5,5 L -17,0 L -5,-5 Z"
+        fill="#FFD520"/>
+
+  <!-- ══════════════════════════════════════════════════
+       4. THREE NUMBERED CIRCLES
+       ══════════════════════════════════════════════════ -->
+
+  <!-- ── Circle 1 (pink, upper-left) ── -->
+  <circle cx="266" cy="306" r="192" fill="url(#c1Grad)" filter="url(#circleShadow)"/>
+  <!-- top-left gloss highlight -->
+  <ellipse cx="210" cy="248" rx="68" ry="48"
+           fill="white" opacity="0.22" transform="rotate(-30,210,248)"/>
+  <!-- number "1" -->
+  <text x="266" y="306"
+        font-family="'Nunito','Rounded Mplus 1c','Arial Rounded MT Bold','Arial Black',sans-serif"
+        font-weight="900" font-size="210" fill="white"
+        text-anchor="middle" dominant-baseline="middle"
+        letter-spacing="-4">1</text>
+
+  <!-- ── Circle 2 (blue, upper-right) ── -->
+  <circle cx="758" cy="306" r="192" fill="url(#c2Grad)" filter="url(#circleShadow)"/>
+  <ellipse cx="702" cy="248" rx="68" ry="48"
+           fill="white" opacity="0.22" transform="rotate(-30,702,248)"/>
+  <text x="758" y="306"
+        font-family="'Nunito','Rounded Mplus 1c','Arial Rounded MT Bold','Arial Black',sans-serif"
+        font-weight="900" font-size="210" fill="white"
+        text-anchor="middle" dominant-baseline="middle"
+        letter-spacing="-4">2</text>
+
+  <!-- ── Circle 3 (green, lower-center) ── -->
+  <circle cx="512" cy="694" r="192" fill="url(#c3Grad)" filter="url(#circleShadow)"/>
+  <ellipse cx="456" cy="636" rx="68" ry="48"
+           fill="white" opacity="0.22" transform="rotate(-30,456,636)"/>
+  <text x="512" y="694"
+        font-family="'Nunito','Rounded Mplus 1c','Arial Rounded MT Bold','Arial Black',sans-serif"
+        font-weight="900" font-size="210" fill="white"
+        text-anchor="middle" dominant-baseline="middle"
+        letter-spacing="-4">3</text>
+
+  <!-- ══════════════════════════════════════════════════
+       5. CATERPILLAR CHARACTER  (bottom-left)
+          Body: 6 pastel balls (r=34) spaced 72 px
+          Head: tan circle with two eyes + smile
+          Antenna: two small lines + dots
+       ══════════════════════════════════════════════════ -->
+
+  <!-- ── Body segments (tail → head, left → right) ── -->
+  <!-- Segment 6 (tail, leftmost) – mint -->
+  <circle cx="108" cy="932" r="34" fill="#A0EACE"/>
+  <!-- Segment 5 – soft pink -->
+  <circle cx="180" cy="924" r="34" fill="#F5AABE"/>
+  <!-- Segment 4 – light sky -->
+  <circle cx="252" cy="920" r="34" fill="#A0D8EE"/>
+  <!-- Segment 3 – pale yellow -->
+  <circle cx="324" cy="918" r="34" fill="#F5E098"/>
+  <!-- Segment 2 – peach-orange -->
+  <circle cx="396" cy="920" r="34" fill="#F5C08A"/>
+
+  <!-- ── Head circle – warm tan/peach ── -->
+  <circle cx="466" cy="918" r="40" fill="#F5B870"/>
+  <!-- Head highlight -->
+  <ellipse cx="452" cy="906" rx="14" ry="9"
+           fill="white" opacity="0.40" transform="rotate(-20,452,906)"/>
+
+  <!-- Eyes (white sclera + dark pupil) -->
+  <circle cx="452" cy="908" r="8"  fill="white"/>
+  <circle cx="452" cy="908" r="4"  fill="#2A1800"/>
+  <circle cx="455" cy="905" r="1.5" fill="white"/><!-- pupil shine -->
+
+  <circle cx="476" cy="908" r="8"  fill="white"/>
+  <circle cx="476" cy="908" r="4"  fill="#2A1800"/>
+  <circle cx="479" cy="905" r="1.5" fill="white"/>
+
+  <!-- Smile -->
+  <path d="M 452 918 Q 464 928 478 918"
+        fill="none" stroke="#2A1800" stroke-width="3" stroke-linecap="round"/>
+
+  <!-- Antennae -->
+  <line x1="456" y1="878" x2="444" y2="854"
+        stroke="#E08040" stroke-width="3" stroke-linecap="round"/>
+  <circle cx="444" cy="852" r="5" fill="#FF8040"/>
+
+  <line x1="470" y1="878" x2="476" y2="852"
+        stroke="#E08040" stroke-width="3" stroke-linecap="round"/>
+  <circle cx="476" cy="850" r="5" fill="#FF8040"/>
+
+</svg>
