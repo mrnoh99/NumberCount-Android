@@ -1,19 +1,17 @@
 package com.mrnoh99.numbercount.ui
 
-import android.Manifest
-import android.app.Application
 import android.content.Context
-import android.content.pm.PackageManager
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
+import android.content.Intent
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
+import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
-import androidx.lifecycle.ViewModelProvider
-import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -41,18 +39,14 @@ import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Text
-import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.SideEffect
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -74,22 +68,20 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.Icon
-import com.mrnoh99.numbercount.AppAudioViewModel
 import com.mrnoh99.numbercount.GameViewModel
 import com.mrnoh99.numbercount.numColors
 import com.mrnoh99.numbercount.AppLanguage
 import com.mrnoh99.numbercount.ItemCategory
 import com.mrnoh99.numbercount.QuizMode
 import com.mrnoh99.numbercount.Theme
+import com.mrnoh99.numbercount.NumberCountApplication
+import com.mrnoh99.numbercount.SettingsActivity
 import com.mrnoh99.numbercount.ThemeCatalog
-import com.mrnoh99.numbercount.ui.SettingsScreen
 import kotlin.math.min
 import kotlin.random.Random
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun NumberCountApp(context: Context) {
-    val scope = rememberCoroutineScope()
     val prefs = remember { context.getSharedPreferences("numbercount_prefs", Context.MODE_PRIVATE) }
 
     var appLanguageRaw by remember {
@@ -110,11 +102,9 @@ fun NumberCountApp(context: Context) {
     val appLanguage = AppLanguage.fromRaw(appLanguageRaw)
     val selectedCategories = ItemCategory.fromStorage(themeCategoriesStorage)
 
-    val audioViewModel: AppAudioViewModel = viewModel(
-        factory = ViewModelProvider.AndroidViewModelFactory.getInstance(
-            context.applicationContext as Application
-        )
-    )
+    val audioViewModel = remember {
+        (context.applicationContext as NumberCountApplication).audioViewModel
+    }
     val audioController = audioViewModel.audioController
     val feedbackRecorder = audioViewModel.feedbackRecorder
 
@@ -122,17 +112,23 @@ fun NumberCountApp(context: Context) {
         factory = GameViewModel.factory(audioController, feedbackRecorder)
     )
 
-    // Permission for hold-to-record
-    val initialPermissionGranted =
-        context.checkSelfPermission(Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED
-    var recordPermissionGranted by remember { mutableStateOf(initialPermissionGranted) }
-    val permissionLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.RequestPermission(),
-        onResult = { granted -> recordPermissionGranted = granted }
-    )
-
-    var showSettings by remember { mutableStateOf(false) }
-    val sheetState = rememberModalBottomSheetState()
+    val lifecycleOwner = LocalLifecycleOwner.current
+    DisposableEffect(lifecycleOwner, prefs) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) {
+                appLanguageRaw = prefs.getString(AppLanguage.storageKey, AppLanguage.KOREAN.raw)
+                    ?: AppLanguage.KOREAN.raw
+                themeCategoriesStorage = prefs.getString(
+                    ItemCategory.appStorageKey,
+                    ItemCategory.defaultStorageValue,
+                ) ?: ItemCategory.defaultStorageValue
+                bgmEnabled = prefs.getBoolean(bgmEnabledKey, true)
+                bgmVolume = prefs.getFloat(bgmVolumeKey, 0.12f)
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
 
     SideEffect {
         gameViewModel.updateSettings(
@@ -209,7 +205,9 @@ fun NumberCountApp(context: Context) {
                     omitTopPadding = !wideSplit,
                     layoutWidth = w,
                     layoutHeight = h,
-                    onOpenSettings = { showSettings = true },
+                    onOpenSettings = {
+                        context.startActivity(Intent(context, SettingsActivity::class.java))
+                    },
                     onSetMaxNumber = { gameViewModel.maxNumber = it },
                     onSetMode = { gameViewModel.quizMode = it }
                 )
@@ -378,36 +376,6 @@ fun NumberCountApp(context: Context) {
                 comment = if (appLanguage == AppLanguage.KOREAN) "그래 잘했다!" else "That's right!",
                 color = game.theme.colors.firstOrNull() ?: Color(0xFFFF6A00)
             )
-        }
-
-        if (showSettings) {
-            ModalBottomSheet(
-                onDismissRequest = { showSettings = false },
-                sheetState = sheetState
-            ) {
-                SettingsScreen(
-                    appLanguage = appLanguage,
-                    selectedCategories = selectedCategories,
-                    bgmEnabled = bgmEnabled,
-                    bgmVolume = bgmVolume,
-                    isRecordPermissionGranted = recordPermissionGranted,
-                    audioController = audioController,
-                    feedbackRecorder = feedbackRecorder,
-                    coroutineScope = scope,
-                    onRequestRecordPermission = { permissionLauncher.launch(Manifest.permission.RECORD_AUDIO) },
-                    onAppLanguageChange = { newLang ->
-                        appLanguageRaw = newLang.raw
-                        prefs.edit().putString(AppLanguage.storageKey, newLang.raw).apply()
-                    },
-                    onSelectedCategoriesChange = { set ->
-                        val storage = ItemCategory.toStorage(set)
-                        themeCategoriesStorage = storage
-                        prefs.edit().putString(ItemCategory.appStorageKey, storage).apply()
-                    },
-                    onBgmEnabledChange = { checked -> bgmEnabled = checked },
-                    onBgmVolumeChange = { v -> bgmVolume = v },
-                )
-            }
         }
     }
 }
@@ -686,8 +654,12 @@ private fun ScoreStars(score: Int, starSize: TextUnit, rowHeight: Dp) {
         modifier = Modifier.height(rowHeight),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        repeat(min(score, 10)) {
-            Text(text = "★", color = Color(0xFFFFCC00), fontSize = starSize)
+        if (score >= 10) {
+            Text(text = "★", color = Color(0xFF2196F3), fontSize = starSize)
+        } else {
+            repeat(score) {
+                Text(text = "★", color = Color(0xFFFFCC00), fontSize = starSize)
+            }
         }
     }
 }

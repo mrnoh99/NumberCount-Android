@@ -6,24 +6,26 @@ import androidx.activity.ComponentActivity
 import androidx.activity.SystemBarStyle
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
-import com.mrnoh99.numbercount.ui.NumberCountApp
+import com.mrnoh99.numbercount.ui.SettingsRoute
 
-class MainActivity : ComponentActivity() {
+class SettingsActivity : ComponentActivity() {
     private val audioViewModel: AppAudioViewModel
         get() = (application as NumberCountApplication).audioViewModel
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        // Cream background: use dark icons on status/navigation bars.
         enableEdgeToEdge(
             statusBarStyle = SystemBarStyle.light(Color.TRANSPARENT, Color.TRANSPARENT),
             navigationBarStyle = SystemBarStyle.light(Color.TRANSPARENT, Color.TRANSPARENT),
         )
 
         setContent {
-            NumberCountApp(
+            SettingsRoute(
                 context = this,
+                audioController = audioViewModel.audioController,
+                feedbackRecorder = audioViewModel.feedbackRecorder,
+                onBack = { finish() },
             )
         }
     }
@@ -33,12 +35,4 @@ class MainActivity : ComponentActivity() {
         audioViewModel.audioController.pauseBgm()
         audioViewModel.audioController.stopTts()
     }
-
-    override fun onStart() {
-        super.onStart()
-        if (!audioViewModel.feedbackRecorder.isRecording.value) {
-            audioViewModel.audioController.resumeBgm()
-        }
-    }
 }
-

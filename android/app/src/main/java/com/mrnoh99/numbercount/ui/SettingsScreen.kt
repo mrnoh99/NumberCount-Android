@@ -1,5 +1,10 @@
 package com.mrnoh99.numbercount.ui
 
+import android.Manifest
+import android.content.Context
+import android.content.pm.PackageManager
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectTapGestures
@@ -9,15 +14,20 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Slider
 import androidx.compose.material3.Switch
@@ -27,6 +37,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -42,9 +53,69 @@ import com.mrnoh99.numbercount.ItemCategory
 import com.mrnoh99.numbercount.audio.AudioController
 import com.mrnoh99.numbercount.audio.FeedbackKind
 import com.mrnoh99.numbercount.audio.FeedbackRecorder
-import java.util.Locale
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
+
+@Composable
+fun SettingsRoute(
+    context: Context,
+    audioController: AudioController,
+    feedbackRecorder: FeedbackRecorder,
+    onBack: () -> Unit,
+) {
+    val scope = rememberCoroutineScope()
+    val prefs = remember { context.getSharedPreferences("numbercount_prefs", Context.MODE_PRIVATE) }
+
+    var appLanguageRaw by remember {
+        mutableStateOf(prefs.getString(AppLanguage.storageKey, AppLanguage.KOREAN.raw) ?: AppLanguage.KOREAN.raw)
+    }
+    var themeCategoriesStorage by remember {
+        mutableStateOf(
+            prefs.getString(ItemCategory.appStorageKey, ItemCategory.defaultStorageValue)
+                ?: ItemCategory.defaultStorageValue
+        )
+    }
+
+    val bgmEnabledKey = "bgmEnabled"
+    val bgmVolumeKey = "bgmVolume"
+    var bgmEnabled by remember { mutableStateOf(prefs.getBoolean(bgmEnabledKey, true)) }
+    var bgmVolume by remember { mutableStateOf(prefs.getFloat(bgmVolumeKey, 0.12f)) }
+
+    val appLanguage = AppLanguage.fromRaw(appLanguageRaw)
+    val selectedCategories = ItemCategory.fromStorage(themeCategoriesStorage)
+
+    val initialPermissionGranted =
+        context.checkSelfPermission(Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED
+    var recordPermissionGranted by remember { mutableStateOf(initialPermissionGranted) }
+    val permissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission(),
+        onResult = { granted -> recordPermissionGranted = granted },
+    )
+
+    SettingsScreen(
+        appLanguage = appLanguage,
+        selectedCategories = selectedCategories,
+        bgmEnabled = bgmEnabled,
+        bgmVolume = bgmVolume,
+        isRecordPermissionGranted = recordPermissionGranted,
+        audioController = audioController,
+        feedbackRecorder = feedbackRecorder,
+        coroutineScope = scope,
+        onRequestRecordPermission = { permissionLauncher.launch(Manifest.permission.RECORD_AUDIO) },
+        onAppLanguageChange = { newLang ->
+            appLanguageRaw = newLang.raw
+            prefs.edit().putString(AppLanguage.storageKey, newLang.raw).apply()
+        },
+        onSelectedCategoriesChange = { set ->
+            val storage = ItemCategory.toStorage(set)
+            themeCategoriesStorage = storage
+            prefs.edit().putString(ItemCategory.appStorageKey, storage).apply()
+        },
+        onBgmEnabledChange = { checked -> bgmEnabled = checked },
+        onBgmVolumeChange = { v -> bgmVolume = v },
+        onBack = onBack,
+    )
+}
 
 @Composable
 fun SettingsScreen(
@@ -61,6 +132,7 @@ fun SettingsScreen(
     onSelectedCategoriesChange: (Set<ItemCategory>) -> Unit,
     onBgmEnabledChange: (Boolean) -> Unit,
     onBgmVolumeChange: (Float) -> Unit,
+    onBack: () -> Unit,
 ) {
     val isRecording by feedbackRecorder.isRecording.collectAsState()
     // Observe revision so the rows refresh after a recording is saved or deleted.
@@ -116,14 +188,57 @@ fun SettingsScreen(
         lineHeight = 20.sp,
     )
 
+    val scrollState = rememberScrollState()
+
     Column(
         modifier = Modifier
-            .fillMaxWidth()
+            .fillMaxSize()
             .background(cream)
-            .verticalScroll(rememberScrollState())
-            .navigationBarsPadding()
-            .padding(horizontal = 20.dp, vertical = 24.dp)
+            .statusBarsPadding()
+            .navigationBarsPadding(),
     ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 8.dp, vertical = 8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Box(
+                modifier = Modifier
+                    .clip(RoundedCornerShape(12.dp))
+                    .clickable { onBack() }
+                    .padding(horizontal = 12.dp, vertical = 10.dp),
+                contentAlignment = Alignment.Center,
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                        contentDescription = if (appLanguage == AppLanguage.KOREAN) "뒤로" else "Back",
+                        tint = accent,
+                    )
+                    Spacer(Modifier.padding(start = 4.dp))
+                    Text(
+                        text = if (appLanguage == AppLanguage.KOREAN) "완료" else "Done",
+                        style = buttonLabelStyle.copy(color = accent),
+                    )
+                }
+            }
+            Spacer(Modifier.weight(1f))
+            Text(
+                text = if (appLanguage == AppLanguage.KOREAN) "설정" else "Settings",
+                style = sectionTitleStyle.copy(fontSize = 20.sp),
+            )
+            Spacer(Modifier.weight(1f))
+            Spacer(Modifier.padding(end = 72.dp))
+        }
+
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .weight(1f)
+                .verticalScroll(scrollState)
+                .padding(horizontal = 20.dp, vertical = 8.dp),
+        ) {
         Text(
             text = if (appLanguage == AppLanguage.KOREAN) "숫자세기" else "Number Count",
             style = titleStyle,
@@ -397,6 +512,7 @@ fun SettingsScreen(
                 }
             },
         )
+        }
     }
 }
 
@@ -569,9 +685,7 @@ private fun FeedbackRow(
                         onRequestPermission()
                     }
                 },
-                onHoldEnd = {
-                    if (isPermissionGranted) onHoldEnd()
-                },
+                onHoldEnd = onHoldEnd,
             )
         }
     }
@@ -598,6 +712,7 @@ private fun HoldToRecordButton(
     ) {
         BoxWithHoldArea(
             isRecording = isRecording,
+            isPermissionGranted = isPermissionGranted,
             appLanguage = appLanguage,
             labelStyle = labelStyle,
             onHoldStart = onHoldStart,
@@ -609,6 +724,7 @@ private fun HoldToRecordButton(
 @Composable
 private fun BoxWithHoldArea(
     isRecording: Boolean,
+    isPermissionGranted: Boolean,
     appLanguage: AppLanguage,
     labelStyle: TextStyle,
     onHoldStart: () -> Unit,
@@ -619,7 +735,7 @@ private fun BoxWithHoldArea(
         modifier = Modifier
             .fillMaxWidth()
             .height(56.dp)
-            .pointerInput(Unit) {
+            .pointerInput(isPermissionGranted, isRecording) {
                 detectTapGestures(
                     onPress = {
                         onHoldStart()
