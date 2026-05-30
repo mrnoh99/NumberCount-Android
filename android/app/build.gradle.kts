@@ -11,7 +11,7 @@ android {
         applicationId = "com.mrnoh99.numbercount"
         minSdk = 24
         targetSdk = 36
-        versionCode = 2
+        versionCode = 3
         versionName = "1.0"
     }
 
