@@ -403,11 +403,12 @@ fun NumberCountApp(context: Context) {
             )
         }
         if (showWrongImage) {
+            // 오답은 "다음" 버튼을 띄우지 않고, 기존처럼 힌트→재시도 흐름으로 자동 진행한다.
             FeedbackImageOverlay(
                 resId = R.drawable.wrong,
                 contentDescription = "오답",
-                interactive = feedbackInteractive,
-                onNext = { gameViewModel.proceedFromWrong(appLanguage) },
+                interactive = false,
+                onNext = {},
             )
         }
     }

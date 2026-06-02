@@ -144,7 +144,7 @@ class GameViewModel(
                 feedbackInteractive = true
             }
         } else {
-            // 오답: 그림을 띄우고, 음성이 끝나면 파란 "다음" 버튼을 눌러 세기 힌트로 진행한다.
+            // 오답: 그림을 잠깐 보여준 뒤, 별도 버튼 없이 기존처럼 "세기 힌트(가르쳐주기) → 재시도" 흐름으로 자동 진행한다.
             wrongIndex = idx
             shaking = true
             showWrongImage = true
@@ -154,7 +154,13 @@ class GameViewModel(
                 shaking = false
             }
             playAnswerFeedback(FeedbackKind.WRONG, appLanguage) {
-                feedbackInteractive = true
+                viewModelScope.launch {
+                    delay(1000L)
+                    guidanceJob?.cancel()
+                    guidanceJob = launch {
+                        startCountHint(fromWrongAnswerFlow = true, appLanguage = appLanguage)
+                    }
+                }
             }
         }
     }
@@ -178,16 +184,6 @@ class GameViewModel(
         locked = false
         wrongIndex = null
         shaking = false
-    }
-
-    /** 오답 그림에서 파란 "다음" 버튼을 눌렀을 때: 세기 힌트(가르쳐주기) 흐름으로 진행. */
-    fun proceedFromWrong(appLanguage: AppLanguage) {
-        if (!feedbackInteractive) return
-        feedbackInteractive = false
-        guidanceJob?.cancel()
-        guidanceJob = viewModelScope.launch {
-            startCountHint(fromWrongAnswerFlow = true, appLanguage = appLanguage)
-        }
     }
 
     private fun playAnswerFeedback(
