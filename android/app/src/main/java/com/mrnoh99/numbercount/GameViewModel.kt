@@ -27,6 +27,13 @@ class GameViewModel(
     var shaking by mutableStateOf(false)
 
     var showCelebration by mutableStateOf(false)
+    // 오답일 때 FamilyFinder와 동일한 전체화면 오답 그림(wrong.jpg)을 표시할지 여부.
+    var showWrongImage by mutableStateOf(false)
+    // 정답/오답 음성이 끝나 파란 "다음" 버튼을 눌러 진행할 수 있는 상태인지 여부.
+    var feedbackInteractive by mutableStateOf(false)
+
+    // 정답 시 다음 라운드에 반영할 점수(파란 버튼을 누를 때 적용).
+    private var pendingCorrectScore: Int? = null
 
     var showingCountHint by mutableStateOf(false)
     var highlightedCount by mutableStateOf(0)
@@ -87,6 +94,9 @@ class GameViewModel(
         wrongIndex = null
         shaking = false
         showCelebration = false
+        showWrongImage = false
+        feedbackInteractive = false
+        pendingCorrectScore = null
         showingCountHint = false
         highlightedCount = 0
         hintWord = ""
@@ -126,41 +136,57 @@ class GameViewModel(
         isCorrect = ok
 
         if (ok) {
-            playAnswerFeedback(FeedbackKind.CORRECT, appLanguage)
+            // 정답: 그림을 띄우고, 음성이 끝나면 파란 "다음" 버튼을 눌러 다음 라운드로 진행한다.
             showCelebration = true
-            val newScore = game.score + 1
-            viewModelScope.launch {
-                delay(2500L)
-                showCelebration = false
-                game = GameState.newRound(
-                    score = newScore,
-                    prev = game.targetNumber,
-                    maxNumber = maxNumber,
-                    mode = quizMode,
-                    themePool = themePoolForRound(categories),
-                )
-                selectedOption = null
-                isCorrect = null
-                locked = false
-                wrongIndex = null
-                shaking = false
+            feedbackInteractive = false
+            pendingCorrectScore = game.score + 1
+            playAnswerFeedback(FeedbackKind.CORRECT, appLanguage) {
+                feedbackInteractive = true
             }
         } else {
+            // 오답: 그림을 띄우고, 음성이 끝나면 파란 "다음" 버튼을 눌러 세기 힌트로 진행한다.
             wrongIndex = idx
             shaking = true
+            showWrongImage = true
+            feedbackInteractive = false
             viewModelScope.launch {
                 delay(600L)
                 shaking = false
             }
             playAnswerFeedback(FeedbackKind.WRONG, appLanguage) {
-                viewModelScope.launch {
-                    delay(1000L)
-                    guidanceJob?.cancel()
-                    guidanceJob = launch {
-                        startCountHint(fromWrongAnswerFlow = true, appLanguage = appLanguage)
-                    }
-                }
+                feedbackInteractive = true
             }
+        }
+    }
+
+    /** 정답 그림에서 파란 "다음" 버튼을 눌렀을 때: 다음 라운드로 진행. */
+    fun proceedFromCorrect(categories: Set<ItemCategory>) {
+        if (!feedbackInteractive) return
+        feedbackInteractive = false
+        showCelebration = false
+        val newScore = pendingCorrectScore ?: (game.score + 1)
+        pendingCorrectScore = null
+        game = GameState.newRound(
+            score = newScore,
+            prev = game.targetNumber,
+            maxNumber = maxNumber,
+            mode = quizMode,
+            themePool = themePoolForRound(categories),
+        )
+        selectedOption = null
+        isCorrect = null
+        locked = false
+        wrongIndex = null
+        shaking = false
+    }
+
+    /** 오답 그림에서 파란 "다음" 버튼을 눌렀을 때: 세기 힌트(가르쳐주기) 흐름으로 진행. */
+    fun proceedFromWrong(appLanguage: AppLanguage) {
+        if (!feedbackInteractive) return
+        feedbackInteractive = false
+        guidanceJob?.cancel()
+        guidanceJob = viewModelScope.launch {
+            startCountHint(fromWrongAnswerFlow = true, appLanguage = appLanguage)
         }
     }
 
@@ -170,8 +196,10 @@ class GameViewModel(
         onFinished: () -> Unit = {},
     ) {
         val hasCustomRecording = feedbackRecorder.hasRecording(kind, appLanguage)
-        if (kind == FeedbackKind.CORRECT && !hasCustomRecording) {
-            audioController.playCorrectChime()
+        // FamilyFinder와 동일하게 정답/오답 모두 신호음을 먼저 들려준 뒤 음성을 재생한다.
+        when (kind) {
+            FeedbackKind.CORRECT -> audioController.playCorrectChime()
+            FeedbackKind.WRONG -> audioController.playWrongChime()
         }
         if (hasCustomRecording) {
             feedbackRecorder.play(kind, appLanguage, onFinished)
@@ -196,6 +224,7 @@ class GameViewModel(
 
     private suspend fun startCountHint(fromWrongAnswerFlow: Boolean, appLanguage: AppLanguage) {
         feedbackRecorder.stopPlayback()
+        showWrongImage = false
         showingCountHint = true
         highlightedCount = 0
         hintWord = ""

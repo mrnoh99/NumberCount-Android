@@ -2,18 +2,18 @@ package com.mrnoh99.numbercount.ui
 
 import android.content.Context
 import android.content.Intent
+import android.os.Build
+import android.os.VibrationEffect
+import android.os.Vibrator
+import android.os.VibratorManager
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.viewmodel.compose.viewModel
-import androidx.compose.animation.core.FastOutSlowInEasing
-import androidx.compose.animation.core.RepeatMode
-import androidx.compose.animation.core.animateFloat
-import androidx.compose.animation.core.infiniteRepeatable
-import androidx.compose.animation.core.rememberInfiniteTransition
-import androidx.compose.animation.core.tween
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -43,6 +43,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -51,16 +52,18 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.scale
 import androidx.compose.ui.draw.shadow
 import androidx.compose.foundation.border
 import androidx.compose.foundation.shape.CircleShape
@@ -69,6 +72,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.Icon
 import com.mrnoh99.numbercount.GameViewModel
+import com.mrnoh99.numbercount.R
 import com.mrnoh99.numbercount.numColors
 import com.mrnoh99.numbercount.AppLanguage
 import com.mrnoh99.numbercount.ItemCategory
@@ -147,9 +151,22 @@ fun NumberCountApp(context: Context) {
     val wrongIndex = gameViewModel.wrongIndex
     val shaking = gameViewModel.shaking
     val showCelebration = gameViewModel.showCelebration
+    val showWrongImage = gameViewModel.showWrongImage
+    val feedbackInteractive = gameViewModel.feedbackInteractive
     val showingCountHint = gameViewModel.showingCountHint
     val highlightedCount = gameViewModel.highlightedCount
     val hintWord = gameViewModel.hintWord
+
+    // 정답/오답이 확정되는 순간 FamilyFinder와 동일하게 결과별 진동을 한 번 재생한다.
+    LaunchedEffect(isCorrect) {
+        when (isCorrect) {
+            true -> vibrateForResult(context, correct = true)
+            false -> vibrateForResult(context, correct = false)
+            null -> {}
+        }
+    }
+
+    val haptic = LocalHapticFeedback.current
 
     Box(
         modifier = Modifier
@@ -260,7 +277,10 @@ fun NumberCountApp(context: Context) {
                                 numberFont = targetNumberFont,
                                 cornerRadius = 36.dp,
                                 modifier = targetPanelModifier
-                                    .clickable { gameViewModel.onQuestionPanelTapped(appLanguage) }
+                                    .clickable {
+                                        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                        gameViewModel.onQuestionPanelTapped(appLanguage)
+                                    }
                             )
                         }
 
@@ -335,7 +355,10 @@ fun NumberCountApp(context: Context) {
                             numberFont = targetNumberFont,
                             cornerRadius = if (isTablet) 36.dp else 30.dp,
                             modifier = targetPanelModifier
-                                .clickable { gameViewModel.onQuestionPanelTapped(appLanguage) }
+                                .clickable {
+                                    haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                    gameViewModel.onQuestionPanelTapped(appLanguage)
+                                }
                         )
                     }
                     Spacer(modifier = Modifier.weight(1f))
@@ -370,13 +393,123 @@ fun NumberCountApp(context: Context) {
             }
         }
 
+        // FamilyFinder(가족찾기)와 동일한 정답/오답 제시 그림 + 파란 "다음" 버튼.
         if (showCelebration) {
-            CelebrationOverlay(
-                number = game.targetNumber,
-                comment = if (appLanguage == AppLanguage.KOREAN) "그래 잘했다!" else "That's right!",
-                color = game.theme.colors.firstOrNull() ?: Color(0xFFFF6A00)
+            FeedbackImageOverlay(
+                resId = R.drawable.praise,
+                contentDescription = "정답",
+                interactive = feedbackInteractive,
+                onNext = { gameViewModel.proceedFromCorrect(selectedCategories) },
             )
         }
+        if (showWrongImage) {
+            FeedbackImageOverlay(
+                resId = R.drawable.wrong,
+                contentDescription = "오답",
+                interactive = feedbackInteractive,
+                onNext = { gameViewModel.proceedFromWrong(appLanguage) },
+            )
+        }
+    }
+}
+
+/** 시스템 진동기를 가져온다(없으면 null). */
+private fun obtainVibrator(context: Context): Vibrator? =
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+        (context.getSystemService(Context.VIBRATOR_MANAGER_SERVICE) as? VibratorManager)?.defaultVibrator
+    } else {
+        @Suppress("DEPRECATION")
+        context.getSystemService(Context.VIBRATOR_SERVICE) as? Vibrator
+    }
+
+/**
+ * 정답/오답에 따라 서로 다른 진동 패턴을 재생한다(FamilyFinder와 동일).
+ * - 정답: 가볍고 경쾌한 두 번의 짧은 진동
+ * - 오답: 묵직한 한 번의 긴 진동
+ */
+private fun vibrateForResult(context: Context, correct: Boolean) {
+    val vibrator = obtainVibrator(context)?.takeIf { it.hasVibrator() } ?: return
+    val effect = if (correct) {
+        VibrationEffect.createWaveform(longArrayOf(0, 40, 80, 40), -1)
+    } else {
+        VibrationEffect.createOneShot(220, VibrationEffect.DEFAULT_AMPLITUDE)
+    }
+    vibrator.vibrate(effect)
+}
+
+/**
+ * FamilyFinder와 동일하게 정답/오답 그림을 어두운 배경 위에 가로로 꽉 차게 보여주고,
+ * 음성이 끝나면(interactive) 가운데 아래쪽에 파란 "다음" 버튼을 띄워 눌러서 진행한다.
+ */
+@Composable
+private fun FeedbackImageOverlay(
+    resId: Int,
+    contentDescription: String,
+    interactive: Boolean,
+    onNext: () -> Unit,
+) {
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(Color(0x88000000))
+            .padding(24.dp),
+        contentAlignment = Alignment.Center,
+    ) {
+        Column(
+            modifier = Modifier.fillMaxSize(),
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
+            Box(
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxWidth(),
+                contentAlignment = Alignment.Center,
+            ) {
+                Image(
+                    painter = painterResource(resId),
+                    contentDescription = contentDescription,
+                    contentScale = ContentScale.Fit,
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .clip(RoundedCornerShape(24.dp)),
+                )
+            }
+            Box(
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxWidth(),
+                contentAlignment = Alignment.Center,
+            ) {
+                if (interactive) {
+                    NextButton(onClick = onNext)
+                }
+            }
+        }
+    }
+}
+
+/** 올려주신 파란 버튼 이미지(btn_blue) 위에 글자를 얹은 어린이용 다음 버튼(FamilyFinder와 동일). */
+@Composable
+private fun NextButton(onClick: () -> Unit, modifier: Modifier = Modifier) {
+    val haptic = LocalHapticFeedback.current
+    Box(
+        modifier = modifier
+            .size(160.dp)
+            // 포커스/터치 시 ripple·하이라이트가 생기지 않도록 indication 제거.
+            .clickable(
+                interactionSource = remember { MutableInteractionSource() },
+                indication = null,
+            ) {
+                haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                onClick()
+            },
+        contentAlignment = Alignment.Center,
+    ) {
+        Image(
+            painter = painterResource(R.drawable.btn_blue),
+            contentDescription = null,
+            modifier = Modifier.fillMaxSize(),
+        )
     }
 }
 
@@ -658,11 +791,15 @@ private fun SettingsGear(
     pad: Dp,
     onOpenSettings: () -> Unit,
 ) {
+    val haptic = LocalHapticFeedback.current
     Box(
         modifier = Modifier
             .clip(CircleShape)
             .background(AppOrange.copy(alpha = 0.12f))
-            .clickable { onOpenSettings() }
+            .clickable {
+                haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                onOpenSettings()
+            }
             .padding(pad),
         contentAlignment = Alignment.Center
     ) {
@@ -852,126 +989,6 @@ private fun numberPanelSize(baseSide: Dp, screenHeight: Dp, isTablet: Boolean): 
     return upper.coerceAtLeast(lower)
 }
 
-@Composable
-private fun CelebrationOverlay(number: Int, comment: String, color: Color) {
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(Color(0x88000000))
-            .padding(24.dp),
-        contentAlignment = Alignment.Center
-    ) {
-        Box(
-            modifier = Modifier.size(300.dp),
-            contentAlignment = Alignment.Center,
-        ) {
-            SparkleBurst()
-            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                PulsingCelebrationIcon(text = "⭐", fontSize = 64.sp)
-                PulsingCelebrationIcon(
-                    content = {
-                        Text(
-                            text = number.toString(),
-                            fontSize = 84.sp,
-                            color = color,
-                            fontWeight = FontWeight.Black
-                        )
-                    }
-                )
-                Spacer(modifier = Modifier.height(10.dp))
-                Text(
-                    text = comment,
-                    color = Color(0xFF22C55E),
-                    fontWeight = FontWeight.Black,
-                    fontSize = 42.sp,
-                    textAlign = TextAlign.Center,
-                )
-            }
-        }
-    }
-}
-
-private data class SparkleSpec(
-    val offsetX: Dp,
-    val offsetY: Dp,
-    val delayMs: Int,
-    val size: TextUnit,
-)
-
-@Composable
-private fun SparkleBurst() {
-    val sparkles = remember {
-        listOf(
-            SparkleSpec((-98).dp, (-72).dp, 0, 30.sp),
-            SparkleSpec(92.dp, (-64).dp, 160, 26.sp),
-            SparkleSpec((-88).dp, 58.dp, 320, 24.sp),
-            SparkleSpec(86.dp, 68.dp, 480, 28.sp),
-            SparkleSpec(0.dp, (-102).dp, 240, 32.sp),
-            SparkleSpec((-110).dp, 4.dp, 400, 22.sp),
-            SparkleSpec(108.dp, 8.dp, 80, 22.sp),
-        )
-    }
-    sparkles.forEach { spec ->
-        PulsingSparkle(spec)
-    }
-}
-
-@Composable
-private fun PulsingSparkle(spec: SparkleSpec) {
-    val transition = rememberInfiniteTransition(label = "sparkle")
-    val scale by transition.animateFloat(
-        initialValue = 0.35f,
-        targetValue = 1.15f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(durationMillis = 850, delayMillis = spec.delayMs, easing = FastOutSlowInEasing),
-            repeatMode = RepeatMode.Reverse,
-        ),
-        label = "sparkleScale",
-    )
-    val alpha by transition.animateFloat(
-        initialValue = 0.15f,
-        targetValue = 1f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(durationMillis = 850, delayMillis = spec.delayMs, easing = FastOutSlowInEasing),
-            repeatMode = RepeatMode.Reverse,
-        ),
-        label = "sparkleAlpha",
-    )
-    Text(
-        text = "✨",
-        fontSize = spec.size,
-        modifier = Modifier
-            .offset(x = spec.offsetX, y = spec.offsetY)
-            .scale(scale)
-            .alpha(alpha),
-    )
-}
-
-@Composable
-private fun PulsingCelebrationIcon(
-    text: String? = null,
-    fontSize: TextUnit = 64.sp,
-    content: (@Composable () -> Unit)? = null,
-) {
-    val transition = rememberInfiniteTransition(label = "celebrationPulse")
-    val scale by transition.animateFloat(
-        initialValue = 0.92f,
-        targetValue = 1.08f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(durationMillis = 700, easing = FastOutSlowInEasing),
-            repeatMode = RepeatMode.Reverse,
-        ),
-        label = "celebrationScale",
-    )
-    Box(modifier = Modifier.scale(scale)) {
-        if (content != null) {
-            content()
-        } else {
-            Text(text = text.orEmpty(), fontSize = fontSize)
-        }
-    }
-}
-
 private fun answerColumns(count: Int): Int = when {
     count <= 3 -> count.coerceAtLeast(1)
     count <= 6 -> 3
@@ -1115,6 +1132,7 @@ private fun RowScope.OptionCell(
         else -> 58.sp
     }
 
+    val haptic = LocalHapticFeedback.current
     Box(
         modifier = Modifier
             .weight(1f)
@@ -1123,7 +1141,10 @@ private fun RowScope.OptionCell(
             .shadow(elevation = 8.dp, shape = shape, clip = false)
             .background(bg, shape)
             .border(borderWidth, borderColor, shape)
-            .clickable { onClick() },
+            .clickable {
+                haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                onClick()
+            },
         contentAlignment = Alignment.Center,
     ) {
         if (quizMode == QuizMode.NUMBER_TO_OBJECTS) {

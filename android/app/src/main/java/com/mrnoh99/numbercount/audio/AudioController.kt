@@ -25,8 +25,12 @@ class AudioController(
     @RawRes
     private val bgmRes: Int = R.raw.waltz_for_you
 
+    // 정답/오답 신호음을 FamilyFinder(가족찾기) 앱과 동일한 효과음으로 통일한다.
     @RawRes
-    private val correctChimeRes: Int = R.raw.correct_chime
+    private val correctChimeRes: Int = R.raw.signal_correct
+
+    @RawRes
+    private val wrongChimeRes: Int = R.raw.signal_wrong
 
     private val sfxVolume = 0.85f
 
@@ -48,6 +52,8 @@ class AudioController(
     private var soundPool: SoundPool? = null
     private var correctChimeSoundId: Int = 0
     private var correctChimeLoaded = false
+    private var wrongChimeSoundId: Int = 0
+    private var wrongChimeLoaded = false
 
     private var tts: TextToSpeech
 
@@ -68,9 +74,12 @@ class AudioController(
             .build()
             .also { pool ->
                 correctChimeSoundId = pool.load(context, correctChimeRes, 1)
+                wrongChimeSoundId = pool.load(context, wrongChimeRes, 1)
                 pool.setOnLoadCompleteListener { _, sampleId, status ->
-                    if (sampleId == correctChimeSoundId && status == 0) {
-                        correctChimeLoaded = true
+                    if (status != 0) return@setOnLoadCompleteListener
+                    when (sampleId) {
+                        correctChimeSoundId -> correctChimeLoaded = true
+                        wrongChimeSoundId -> wrongChimeLoaded = true
                     }
                 }
             }
@@ -177,6 +186,11 @@ class AudioController(
         soundPool?.play(correctChimeSoundId, sfxVolume, sfxVolume, 1, 0, 1f)
     }
 
+    fun playWrongChime() {
+        if (!wrongChimeLoaded || wrongChimeSoundId <= 0) return
+        soundPool?.play(wrongChimeSoundId, sfxVolume, sfxVolume, 1, 0, 1f)
+    }
+
     fun release() {
         stopTts()
         try {
@@ -191,6 +205,8 @@ class AudioController(
         soundPool = null
         correctChimeSoundId = 0
         correctChimeLoaded = false
+        wrongChimeSoundId = 0
+        wrongChimeLoaded = false
     }
 
     fun stopTts() {
