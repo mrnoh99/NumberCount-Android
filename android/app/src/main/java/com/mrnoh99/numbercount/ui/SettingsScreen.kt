@@ -33,6 +33,7 @@ import androidx.compose.material3.Slider
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -142,6 +143,11 @@ fun SettingsScreen(
     // Observe revision so the rows refresh after a recording is saved or deleted.
     val revision by feedbackRecorder.revision.collectAsState()
     var activeSlot by remember { mutableStateOf<FeedbackSlot?>(null) }
+
+    // 녹음 중에 설정 화면을 벗어나면(뒤로가기 등) 진행 중 녹음을 중단하고 마이크를 해제한다.
+    DisposableEffect(Unit) {
+        onDispose { feedbackRecorder.abortRecording() }
+    }
 
     val hasCorrectKo = remember(revision) { feedbackRecorder.hasRecording(FeedbackKind.CORRECT, AppLanguage.KOREAN) }
     val hasCorrectEn = remember(revision) { feedbackRecorder.hasRecording(FeedbackKind.CORRECT, AppLanguage.ENGLISH) }

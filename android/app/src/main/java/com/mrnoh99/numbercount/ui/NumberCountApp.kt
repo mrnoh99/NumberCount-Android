@@ -44,7 +44,6 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -134,7 +133,15 @@ fun NumberCountApp(context: Context) {
         onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
     }
 
-    SideEffect {
+    // 설정(난이도·모드·카테고리·언어)이 "실제로 바뀔 때만" 반영한다.
+    // SideEffect(매 recomposition)가 아니라 값 키 기반 LaunchedEffect로 두어,
+    // 무관한 recomposition에서는 아무 일도 일어나지 않게 한다(진행 중 문제 보존).
+    LaunchedEffect(
+        gameViewModel.maxNumber,
+        gameViewModel.quizMode,
+        themeCategoriesStorage,
+        appLanguageRaw,
+    ) {
         gameViewModel.updateSettings(
             themeCategoriesStorage = themeCategoriesStorage,
             appLanguageRaw = appLanguageRaw,

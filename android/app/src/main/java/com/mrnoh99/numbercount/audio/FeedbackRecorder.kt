@@ -21,6 +21,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.async
 import kotlinx.coroutines.cancelAndJoin
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -38,6 +39,8 @@ class FeedbackRecorder(
         File(context.filesDir, "feedback").apply { mkdirs() }
 
     private val sampleRate = 44_100
+    // 한없이 누르고 있어도 마이크가 무한히 열려 있지 않도록 강제 종료하는 최대 녹음 길이.
+    private val maxRecordMs = 30_000L
     // Per-sample floor used as a minimum speech threshold (matches iOS int16-ish).
     private val minSpeechPeak = 550
     private val padFrames = (sampleRate * 0.045f).toInt().coerceAtLeast(1)
@@ -143,6 +146,15 @@ class FeedbackRecorder(
                 // ignore
             }
         }
+
+        // 최대 길이를 넘기면 자동으로 멈추고 저장한다(무한 hold에도 마이크가 반드시 해제된다).
+        // 사용자가 먼저 손을 떼면 그쪽 stopAndSave가 게이트를 선점하므로 여기서는 중복 동작하지 않는다.
+        scope.launch {
+            delay(maxRecordMs)
+            if (isRecordingInternal.get()) {
+                stopAndSave(scope, kind, language)
+            }
+        }
         return true
     }
 
@@ -151,9 +163,9 @@ class FeedbackRecorder(
         kind: FeedbackKind,
         language: AppLanguage,
     ): Boolean {
-        if (!_isRecording.value) return false
-
-        isRecordingInternal.set(false)
+        // 녹음 종료 경로(손 떼기·최대시간 자동종료·화면 이탈)가 동시에 들어와도
+        // 단 하나만 통과시켜 같은 AudioRecord를 이중 stop/release 하지 않게 한다.
+        if (!isRecordingInternal.compareAndSet(true, false)) return false
         _isRecording.value = false
 
         val job = recordJob
@@ -210,6 +222,25 @@ class FeedbackRecorder(
         // Resume BGM if enabled. iOS keeps session mixing, but this scaffold is simpler.
         audioController.resumeBgm()
         return ok
+    }
+
+    /**
+     * 저장하지 않고 녹음을 즉시 중단하고 마이크를 해제한다.
+     * 화면 이탈(onDispose) 등 진행 중 녹음을 깔끔히 정리해야 할 때 사용한다(non-suspend).
+     * 녹음 중이 아니면 아무 일도 하지 않는다.
+     */
+    fun abortRecording() {
+        // stopAndSave와 동일한 게이트로 단 하나의 종료 경로만 통과시킨다(이중 release 방지).
+        if (!isRecordingInternal.compareAndSet(true, false)) return
+        _isRecording.value = false
+        val job = recordJob
+        val record = audioRecord
+        recordJob = null
+        audioRecord = null
+        job?.cancel()
+        try { record?.stop() } catch (_: Exception) {}
+        try { record?.release() } catch (_: Exception) {}
+        audioController.resumeBgm()
     }
 
     private fun recordingFile(kind: FeedbackKind, language: AppLanguage): File {

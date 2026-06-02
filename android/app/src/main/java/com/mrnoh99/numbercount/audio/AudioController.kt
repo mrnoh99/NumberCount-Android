@@ -60,6 +60,12 @@ class AudioController(
             .build()
 
     private var bgmPlayer: MediaPlayer? = null
+    // BGM은 prepareAsync로 준비한다(메인 스레드에서 동기 디코딩을 하지 않기 위함).
+    // bgmPrepared: 준비가 끝났는지, bgmShouldPlay: 준비 전이라도 "켜야 하는" 상태인지.
+    @Volatile
+    private var bgmPrepared = false
+    @Volatile
+    private var bgmShouldPlay = false
     private var soundPool: SoundPool? = null
     private var correctChimeSoundId: Int = 0
     private var correctChimeLoaded = false
@@ -126,6 +132,7 @@ class AudioController(
 
     private fun createBgmPlayer(): MediaPlayer? {
         return try {
+            bgmPrepared = false
             MediaPlayer().apply {
                 setAudioAttributes(audioAttributes)
                 context.resources.openRawResourceFd(bgmRes).use { afd ->
@@ -141,10 +148,26 @@ class AudioController(
                     }
                     if (bgmPlayer === player) {
                         bgmPlayer = null
+                        bgmPrepared = false
                     }
                     true
                 }
-                prepare()
+                setOnPreparedListener { mp ->
+                    bgmPrepared = true
+                    // 준비되기 전에 재생 요청(resumeBgm)이 들어왔다면 지금 시작한다.
+                    if (bgmShouldPlay && isBgmEnabled()) {
+                        val v = getBgmVolume()
+                        mp.setVolume(v, v)
+                        try {
+                            if (!mp.isPlaying) mp.start()
+                        } catch (_: Exception) {
+                        }
+                    }
+                }
+                // 동기 prepare()는 raw 리소스를 메인 스레드에서 디코딩해 startup jank/ANR을 유발한다.
+                // prepareAsync()로 바꿔 디코딩은 내부 백그라운드에서, 콜백은 (이 객체를 만든)
+                // 메인 스레드에서 받도록 한다.
+                prepareAsync()
             }
         } catch (_: Exception) {
             null
@@ -168,6 +191,7 @@ class AudioController(
         } catch (_: Exception) {
         }
         bgmPlayer = null
+        bgmPrepared = false
     }
 
     fun isBgmEnabled(): Boolean = prefs.getBoolean(bgmEnabledKey, true)
@@ -193,30 +217,31 @@ class AudioController(
     }
 
     fun pauseBgm() {
+        // 준비 콜백이 늦게 와도 자동 시작하지 않도록 의도를 먼저 끈다.
+        bgmShouldPlay = false
         try {
-            bgmPlayer?.pause()
+            bgmPlayer?.let { if (it.isPlaying) it.pause() }
         } catch (_: Exception) {
         }
     }
 
     fun resumeBgm() {
         if (!isBgmEnabled()) return
+        // 준비 전이라도 "켜야 함"을 기록해 두면, 준비 완료 콜백에서 자동으로 시작된다.
+        bgmShouldPlay = true
         val volume = getBgmVolume()
         val player = ensureBgmPlayer() ?: return
+        // 아직 준비가 안 끝났으면 onPreparedListener가 시작을 맡는다(메인 스레드 블로킹 없음).
+        if (!bgmPrepared) return
         try {
             player.setVolume(volume, volume)
             if (!player.isPlaying) {
                 player.start()
             }
         } catch (_: Exception) {
+            // 비정상 상태면 새로 만들고, 준비되면 bgmShouldPlay=true 에 따라 자동 시작된다.
             releaseBgmPlayer()
-            val rebuilt = ensureBgmPlayer() ?: return
-            try {
-                rebuilt.setVolume(volume, volume)
-                rebuilt.start()
-            } catch (_: Exception) {
-                releaseBgmPlayer()
-            }
+            ensureBgmPlayer()
         }
     }
 
