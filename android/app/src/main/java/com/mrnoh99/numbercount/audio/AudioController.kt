@@ -11,6 +11,7 @@ import com.mrnoh99.numbercount.R
 import java.util.Locale
 import java.util.UUID
 import java.util.concurrent.atomic.AtomicBoolean
+import kotlinx.coroutines.CancellableContinuation
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
@@ -35,6 +36,16 @@ class AudioController(
     private val sfxVolume = 0.85f
 
     private val isTtsSpeaking = AtomicBoolean(false)
+
+    // 현재 기다리고 있는 발화의 id와 continuation. 리스너는 init에서 한 번만 설치하고,
+    // 콜백의 utteranceId가 이 값과 일치할 때만 해당 발화를 깨운다.
+    // (매 호출마다 새 리스너를 달면, 앞선 발화의 continuation이 뒤 발화의 완료로 잘못 깨어나거나
+    //  영영 깨어나지 못하는 교차-완료 문제가 생긴다.)
+    @Volatile
+    private var pendingUtteranceId: String? = null
+
+    @Volatile
+    private var pendingCont: CancellableContinuation<Unit>? = null
 
     private val audioAttributes: AudioAttributes =
         AudioAttributes.Builder()
@@ -64,6 +75,34 @@ class AudioController(
                 // No-op: app will still show UI; audio may not be available.
             }
         }
+
+        // 리스너는 한 번만 설치하고, 들어온 utteranceId가 현재 기다리는 발화와 같을 때만 깨운다.
+        tts.setOnUtteranceProgressListener(object : android.speech.tts.UtteranceProgressListener() {
+            override fun onStart(utteranceId: String?) {
+                // no-op
+            }
+
+            override fun onDone(utteranceId: String?) {
+                val cont = pendingCont
+                if (utteranceId != null && utteranceId == pendingUtteranceId && cont != null) {
+                    pendingUtteranceId = null
+                    pendingCont = null
+                    isTtsSpeaking.set(false)
+                    if (!cont.isCompleted) cont.resume(Unit)
+                }
+            }
+
+            @Deprecated("Deprecated in Java")
+            override fun onError(utteranceId: String?) {
+                val cont = pendingCont
+                if (utteranceId != null && utteranceId == pendingUtteranceId && cont != null) {
+                    pendingUtteranceId = null
+                    pendingCont = null
+                    isTtsSpeaking.set(false)
+                    if (!cont.isCompleted) cont.resumeWithException(IllegalStateException("TTS error"))
+                }
+            }
+        })
 
         // Prepare the player here; actual playback starts when the app is foregrounded.
         bgmPlayer = createBgmPlayer()
@@ -231,26 +270,10 @@ class AudioController(
 
         suspendCancellableCoroutine<Unit> { cont ->
             try {
-                // Set a dedicated listener for this utterance.
-                tts.setOnUtteranceProgressListener(object : android.speech.tts.UtteranceProgressListener() {
-                    override fun onStart(utteranceId: String) {
-                        // no-op
-                    }
-
-                    override fun onDone(utteranceId: String) {
-                        if (!cont.isCompleted) {
-                            isTtsSpeaking.set(false)
-                            cont.resume(Unit)
-                        }
-                    }
-
-                    override fun onError(utteranceId: String) {
-                        if (!cont.isCompleted) {
-                            isTtsSpeaking.set(false)
-                            cont.resumeWithException(IllegalStateException("TTS error"))
-                        }
-                    }
-                })
+                // 이번 발화를 "현재 기다리는 발화"로 등록한다. QUEUE_FLUSH로 직전 발화를 밀어내므로,
+                // 늦게 도착한 직전 발화의 onDone(다른 id)은 일치하지 않아 무시된다.
+                pendingUtteranceId = utteranceId
+                pendingCont = cont
 
                 tts.setSpeechRate(rate.coerceIn(0.1f, 2.0f))
 
@@ -263,18 +286,32 @@ class AudioController(
                 }
 
                 if (result != TextToSpeech.SUCCESS) {
+                    if (pendingUtteranceId == utteranceId) {
+                        pendingUtteranceId = null
+                        pendingCont = null
+                    }
                     isTtsSpeaking.set(false)
                     cont.resumeWithException(IllegalStateException("TTS speak failed"))
                 }
 
                 cont.invokeOnCancellation {
-                    try {
-                        tts.stop()
-                    } catch (_: Exception) {
+                    // 이 발화가 여전히 현재 발화일 때만 정리·정지한다.
+                    // (뒤 발화가 이미 이어받았다면 그 발화의 재생을 끊지 않는다.)
+                    if (pendingUtteranceId == utteranceId) {
+                        pendingUtteranceId = null
+                        pendingCont = null
+                        try {
+                            tts.stop()
+                        } catch (_: Exception) {
+                        }
                     }
                     isTtsSpeaking.set(false)
                 }
             } catch (t: Throwable) {
+                if (pendingUtteranceId == utteranceId) {
+                    pendingUtteranceId = null
+                    pendingCont = null
+                }
                 isTtsSpeaking.set(false)
                 if (!cont.isCompleted) cont.resumeWithException(t)
             }

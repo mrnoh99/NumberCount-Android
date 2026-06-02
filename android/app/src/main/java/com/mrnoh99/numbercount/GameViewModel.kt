@@ -51,6 +51,13 @@ class GameViewModel(
 
     private var guidanceJob: Job? = null
 
+    // 정답/오답 피드백(신호음→음성)과 그 후속 동작을 담는 코루틴. 라운드가 바뀌면 취소한다.
+    private var feedbackJob: Job? = null
+
+    // 라운드가 바뀔 때마다 증가시킨다. 이전 라운드에서 시작된 피드백 콜백
+    // (코루틴 또는 녹음 재생 완료 콜백)이 새 라운드에 끼어들지 못하게 막는 토큰.
+    private var roundToken: Int = 0
+
     private data class SettingsSnapshot(
         val maxNumber: Int,
         val quizMode: QuizMode,
@@ -85,8 +92,13 @@ class GameViewModel(
         prev: Int? = null,
         categories: Set<ItemCategory> = ItemCategory.all.toSet(),
     ) {
+        // 이전 라운드의 진행 중 작업(세기 힌트·피드백 음성)과 그 콜백을 모두 무효화한다.
+        roundToken++
         guidanceJob?.cancel()
         guidanceJob = null
+        feedbackJob?.cancel()
+        feedbackJob = null
+        feedbackRecorder.stopPlayback()
 
         selectedOption = null
         isCorrect = null
@@ -154,12 +166,12 @@ class GameViewModel(
                 shaking = false
             }
             playAnswerFeedback(FeedbackKind.WRONG, appLanguage) {
-                viewModelScope.launch {
+                // 오답 음성이 끝나면 잠깐 뒤 "세기 힌트(가르쳐주기)" 흐름을 시작한다.
+                // 이 후속 작업도 guidanceJob에 담아, 라운드가 바뀌면 함께 취소되게 한다.
+                guidanceJob?.cancel()
+                guidanceJob = viewModelScope.launch {
                     delay(1000L)
-                    guidanceJob?.cancel()
-                    guidanceJob = launch {
-                        startCountHint(fromWrongAnswerFlow = true, appLanguage = appLanguage)
-                    }
+                    startCountHint(fromWrongAnswerFlow = true, appLanguage = appLanguage)
                 }
             }
         }
@@ -168,6 +180,12 @@ class GameViewModel(
     /** 정답 그림에서 파란 "다음" 버튼을 눌렀을 때: 다음 라운드로 진행. */
     fun proceedFromCorrect(categories: Set<ItemCategory>) {
         if (!feedbackInteractive) return
+        // 새 라운드로 진행하므로 이전 라운드의 피드백/힌트 콜백을 무효화한다.
+        roundToken++
+        guidanceJob?.cancel()
+        guidanceJob = null
+        feedbackJob?.cancel()
+        feedbackJob = null
         feedbackInteractive = false
         showCelebration = false
         val newScore = pendingCorrectScore ?: (game.score + 1)
@@ -191,6 +209,11 @@ class GameViewModel(
         appLanguage: AppLanguage,
         onFinished: () -> Unit = {},
     ) {
+        // 이 피드백이 속한 라운드를 기억해 두고, 콜백이 도착했을 때 여전히 같은 라운드일 때만 실행한다.
+        // (녹음 재생 완료 콜백은 코루틴이 아니라 취소가 안 되므로 토큰으로 가드한다.)
+        val token = roundToken
+        val finishIfCurrent = { if (token == roundToken) onFinished() }
+
         val hasCustomRecording = feedbackRecorder.hasRecording(kind, appLanguage)
         // FamilyFinder와 동일하게 정답/오답 모두 신호음을 먼저 들려준 뒤 음성을 재생한다.
         when (kind) {
@@ -198,9 +221,10 @@ class GameViewModel(
             FeedbackKind.WRONG -> audioController.playWrongChime()
         }
         if (hasCustomRecording) {
-            feedbackRecorder.play(kind, appLanguage, onFinished)
+            feedbackRecorder.play(kind, appLanguage, finishIfCurrent)
         } else {
-            viewModelScope.launch {
+            feedbackJob?.cancel()
+            feedbackJob = viewModelScope.launch {
                 val phrase = when (kind) {
                     FeedbackKind.CORRECT -> feedbackCorrectPhrase(appLanguage)
                     FeedbackKind.WRONG -> feedbackWrongPhrase(appLanguage)
@@ -212,7 +236,7 @@ class GameViewModel(
                         rate = voiceRate(appLanguage),
                     )
                 } finally {
-                    onFinished()
+                    finishIfCurrent()
                 }
             }
         }
@@ -271,6 +295,7 @@ class GameViewModel(
 
     override fun onCleared() {
         guidanceJob?.cancel()
+        feedbackJob?.cancel()
         super.onCleared()
     }
 
