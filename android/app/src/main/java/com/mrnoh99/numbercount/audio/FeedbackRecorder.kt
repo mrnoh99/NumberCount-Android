@@ -152,14 +152,13 @@ class FeedbackRecorder(
         scope.launch {
             delay(maxRecordMs)
             if (isRecordingInternal.get()) {
-                stopAndSave(scope, kind, language)
+                stopAndSave(kind, language)
             }
         }
         return true
     }
 
     suspend fun stopAndSave(
-        scope: CoroutineScope,
         kind: FeedbackKind,
         language: AppLanguage,
     ): Boolean {
@@ -538,6 +537,10 @@ class FeedbackRecorder(
                     .build()
             )
             mp.setOnPreparedListener { player ->
+                if (feedbackPlayer !== player) {
+                    try { player.release() } catch (_: Exception) {}
+                    return@setOnPreparedListener
+                }
                 try {
                     player.start()
                 } catch (_: Exception) {

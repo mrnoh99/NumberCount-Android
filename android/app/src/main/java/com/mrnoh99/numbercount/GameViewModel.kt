@@ -54,6 +54,9 @@ class GameViewModel(
     // 정답/오답 피드백(신호음→음성)과 그 후속 동작을 담는 코루틴. 라운드가 바뀌면 취소한다.
     private var feedbackJob: Job? = null
 
+    // 오답 흔들림 애니메이션 리셋 타이머. 라운드가 바뀌면 취소한다.
+    private var shakingJob: Job? = null
+
     // 라운드가 바뀔 때마다 증가시킨다. 이전 라운드에서 시작된 피드백 콜백
     // (코루틴 또는 녹음 재생 완료 콜백)이 새 라운드에 끼어들지 못하게 막는 토큰.
     private var roundToken: Int = 0
@@ -98,6 +101,8 @@ class GameViewModel(
         guidanceJob = null
         feedbackJob?.cancel()
         feedbackJob = null
+        shakingJob?.cancel()
+        shakingJob = null
         feedbackRecorder.stopPlayback()
 
         selectedOption = null
@@ -161,7 +166,8 @@ class GameViewModel(
             shaking = true
             showWrongImage = true
             feedbackInteractive = false
-            viewModelScope.launch {
+            shakingJob?.cancel()
+            shakingJob = viewModelScope.launch {
                 delay(600L)
                 shaking = false
             }
@@ -186,6 +192,8 @@ class GameViewModel(
         guidanceJob = null
         feedbackJob?.cancel()
         feedbackJob = null
+        shakingJob?.cancel()
+        shakingJob = null
         feedbackInteractive = false
         showCelebration = false
         val newScore = pendingCorrectScore ?: (game.score + 1)
@@ -296,6 +304,7 @@ class GameViewModel(
     override fun onCleared() {
         guidanceJob?.cancel()
         feedbackJob?.cancel()
+        shakingJob?.cancel()
         super.onCleared()
     }
 

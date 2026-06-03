@@ -799,10 +799,8 @@ private fun ScoreStars(score: Int, starSize: TextUnit, rowHeight: Dp) {
     ) {
         if (score >= 10) {
             Text(text = "★", color = Color(0xFF2196F3), fontSize = starSize)
-        } else {
-            repeat(score) {
-                Text(text = "★", color = Color(0xFFFFCC00), fontSize = starSize)
-            }
+        } else if (score > 0) {
+            Text(text = "★".repeat(score), color = Color(0xFFFFCC00), fontSize = starSize)
         }
     }
 }

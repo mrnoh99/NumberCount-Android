@@ -13,6 +13,7 @@ class AppAudioViewModel(application: Application) : AndroidViewModel(application
     val feedbackRecorder = FeedbackRecorder(application, audioController)
 
     override fun onCleared() {
+        feedbackRecorder.abortRecording()
         feedbackRecorder.stopPlayback()
         audioController.release()
         super.onCleared()

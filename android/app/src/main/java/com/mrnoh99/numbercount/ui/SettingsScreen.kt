@@ -19,6 +19,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -238,7 +239,7 @@ fun SettingsScreen(
                 style = sectionTitleStyle.copy(fontSize = 20.sp),
             )
             Spacer(Modifier.weight(1f))
-            Spacer(Modifier.padding(end = 72.dp))
+            Spacer(Modifier.width(72.dp))
         }
 
         Column(
@@ -419,7 +420,6 @@ fun SettingsScreen(
                 activeSlot = null
                 coroutineScope.launch {
                     feedbackRecorder.stopAndSave(
-                        scope = coroutineScope,
                         kind = FeedbackKind.CORRECT,
                         language = AppLanguage.KOREAN,
                     )
@@ -460,7 +460,6 @@ fun SettingsScreen(
                 activeSlot = null
                 coroutineScope.launch {
                     feedbackRecorder.stopAndSave(
-                        scope = coroutineScope,
                         kind = FeedbackKind.CORRECT,
                         language = AppLanguage.ENGLISH,
                     )
@@ -501,7 +500,6 @@ fun SettingsScreen(
                 activeSlot = null
                 coroutineScope.launch {
                     feedbackRecorder.stopAndSave(
-                        scope = coroutineScope,
                         kind = FeedbackKind.WRONG,
                         language = AppLanguage.KOREAN,
                     )
@@ -542,7 +540,6 @@ fun SettingsScreen(
                 activeSlot = null
                 coroutineScope.launch {
                     feedbackRecorder.stopAndSave(
-                        scope = coroutineScope,
                         kind = FeedbackKind.WRONG,
                         language = AppLanguage.ENGLISH,
                     )

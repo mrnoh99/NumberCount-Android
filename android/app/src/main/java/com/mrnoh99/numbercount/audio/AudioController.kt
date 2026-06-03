@@ -10,7 +10,6 @@ import com.mrnoh99.numbercount.AppLanguage
 import com.mrnoh99.numbercount.R
 import java.util.Locale
 import java.util.UUID
-import java.util.concurrent.atomic.AtomicBoolean
 import kotlinx.coroutines.CancellableContinuation
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlin.coroutines.resume
@@ -25,9 +24,6 @@ class AudioController(
         const val BGM_VOLUME_KEY = "bgmVolume"
     }
 
-    private val bgmEnabledKey = BGM_ENABLED_KEY
-    private val bgmVolumeKey = BGM_VOLUME_KEY
-
     @RawRes
     private val bgmRes: Int = R.raw.waltz_for_you
 
@@ -39,8 +35,6 @@ class AudioController(
     private val wrongChimeRes: Int = R.raw.signal_wrong
 
     private val sfxVolume = 0.85f
-
-    private val isTtsSpeaking = AtomicBoolean(false)
 
     // 현재 기다리고 있는 발화의 id와 continuation. 리스너는 init에서 한 번만 설치하고,
     // 콜백의 utteranceId가 이 값과 일치할 때만 해당 발화를 깨운다.
@@ -98,7 +92,6 @@ class AudioController(
                 if (utteranceId != null && utteranceId == pendingUtteranceId && cont != null) {
                     pendingUtteranceId = null
                     pendingCont = null
-                    isTtsSpeaking.set(false)
                     if (!cont.isCompleted) cont.resume(Unit)
                 }
             }
@@ -109,7 +102,6 @@ class AudioController(
                 if (utteranceId != null && utteranceId == pendingUtteranceId && cont != null) {
                     pendingUtteranceId = null
                     pendingCont = null
-                    isTtsSpeaking.set(false)
                     if (!cont.isCompleted) cont.resumeWithException(IllegalStateException("TTS error"))
                 }
             }
@@ -199,12 +191,12 @@ class AudioController(
         bgmPrepared = false
     }
 
-    fun isBgmEnabled(): Boolean = prefs.getBoolean(bgmEnabledKey, true)
+    fun isBgmEnabled(): Boolean = prefs.getBoolean(BGM_ENABLED_KEY, true)
 
-    fun getBgmVolume(): Float = prefs.getFloat(bgmVolumeKey, 0.12f).coerceIn(0f, 1f)
+    fun getBgmVolume(): Float = prefs.getFloat(BGM_VOLUME_KEY, 0.12f).coerceIn(0f, 1f)
 
     fun setBgmEnabled(enabled: Boolean) {
-        prefs.edit().putBoolean(bgmEnabledKey, enabled).apply()
+        prefs.edit().putBoolean(BGM_ENABLED_KEY, enabled).apply()
         if (enabled) {
             resumeBgm()
         } else {
@@ -214,7 +206,7 @@ class AudioController(
 
     fun setBgmVolume(volume: Float) {
         val v = volume.coerceIn(0f, 1f)
-        prefs.edit().putFloat(bgmVolumeKey, v).apply()
+        prefs.edit().putFloat(BGM_VOLUME_KEY, v).apply()
         try {
             ensureBgmPlayer()?.setVolume(v, v)
         } catch (_: Exception) {
@@ -296,7 +288,6 @@ class AudioController(
         }
 
         val utteranceId = UUID.randomUUID().toString()
-        isTtsSpeaking.set(true)
 
         suspendCancellableCoroutine<Unit> { cont ->
             try {
@@ -320,7 +311,6 @@ class AudioController(
                         pendingUtteranceId = null
                         pendingCont = null
                     }
-                    isTtsSpeaking.set(false)
                     cont.resumeWithException(IllegalStateException("TTS speak failed"))
                 }
 
@@ -330,7 +320,6 @@ class AudioController(
                     if (pendingUtteranceId == utteranceId) {
                         pendingUtteranceId = null
                         pendingCont = null
-                        isTtsSpeaking.set(false)
                         try {
                             tts.stop()
                         } catch (_: Exception) {
@@ -342,7 +331,6 @@ class AudioController(
                     pendingUtteranceId = null
                     pendingCont = null
                 }
-                isTtsSpeaking.set(false)
                 if (!cont.isCompleted) cont.resumeWithException(t)
             }
         }
