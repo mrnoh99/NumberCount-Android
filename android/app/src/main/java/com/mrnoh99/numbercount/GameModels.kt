@@ -202,10 +202,12 @@ data class GameState(
 
             val count = min(3, pool.size)
             val opts = mutableListOf(target).apply { addAll(pool.take(count)) }
-            while (opts.size < 4) {
-                val extra = Random.nextInt(1, safeMax + 1)
-                if (!opts.contains(extra)) opts.add(extra)
-            }
+            // Set-based fill: terminates in O(safeMax), no infinite loop.
+            (1..safeMax).filter { it !in opts }.shuffled(Random)
+                .take(4 - opts.size)
+                .forEach { opts.add(it) }
+            // Fallback pad for safeMax < 4 (not reachable from current UI but prevents crash).
+            while (opts.size < 4) { opts.add(target) }
             opts.shuffle(Random)
 
             val theme = (themePool.ifEmpty { ThemeCatalog.all }).random(Random)

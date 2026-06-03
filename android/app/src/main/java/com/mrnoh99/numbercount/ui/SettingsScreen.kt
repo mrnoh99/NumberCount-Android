@@ -78,8 +78,8 @@ fun SettingsRoute(
         )
     }
 
-    val bgmEnabledKey = "bgmEnabled"
-    val bgmVolumeKey = "bgmVolume"
+    val bgmEnabledKey = AudioController.BGM_ENABLED_KEY
+    val bgmVolumeKey = AudioController.BGM_VOLUME_KEY
     var bgmEnabled by remember { mutableStateOf(prefs.getBoolean(bgmEnabledKey, true)) }
     var bgmVolume by remember { mutableStateOf(prefs.getFloat(bgmVolumeKey, 0.12f)) }
 

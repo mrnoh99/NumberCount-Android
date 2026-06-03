@@ -20,8 +20,13 @@ class AudioController(
     private val context: Context,
     private val prefs: android.content.SharedPreferences,
 ) {
-    private val bgmEnabledKey = "bgmEnabled"
-    private val bgmVolumeKey = "bgmVolume"
+    companion object {
+        const val BGM_ENABLED_KEY = "bgmEnabled"
+        const val BGM_VOLUME_KEY = "bgmVolume"
+    }
+
+    private val bgmEnabledKey = BGM_ENABLED_KEY
+    private val bgmVolumeKey = BGM_VOLUME_KEY
 
     @RawRes
     private val bgmRes: Int = R.raw.waltz_for_you
@@ -325,12 +330,12 @@ class AudioController(
                     if (pendingUtteranceId == utteranceId) {
                         pendingUtteranceId = null
                         pendingCont = null
+                        isTtsSpeaking.set(false)
                         try {
                             tts.stop()
                         } catch (_: Exception) {
                         }
                     }
-                    isTtsSpeaking.set(false)
                 }
             } catch (t: Throwable) {
                 if (pendingUtteranceId == utteranceId) {

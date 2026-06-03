@@ -316,7 +316,7 @@ private fun koreanNumberWord(number: Int): String {
     if (number < 1) return number.toString()
     return when {
         number < native.size -> native[number]
-        number < 20 -> "십" + if (number == 10) "" else native[number % 10]
+        number < 20 -> "십" + native[number % 10]
         else -> number.toString()
     }
 }

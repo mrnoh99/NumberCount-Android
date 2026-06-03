@@ -17,7 +17,7 @@ android {
 
     buildTypes {
         release {
-            isMinifyEnabled = false
+            isMinifyEnabled = true
             ndk {
                 // Include native debug symbols in the AAB for Play Console crash reports.
                 debugSymbolLevel = "SYMBOL_TABLE"

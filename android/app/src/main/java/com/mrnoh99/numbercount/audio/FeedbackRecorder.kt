@@ -172,6 +172,14 @@ class FeedbackRecorder(
         val record = audioRecord
         recordJob = null
 
+        // stop() 먼저 호출: 진행 중인 blocking read()를 즉시 해제한 뒤 join()으로 기다린다.
+        // (join() → stop() 순서이면 read()가 반환될 때까지 무기한 블로킹될 수 있음.)
+        withContext(Dispatchers.IO) {
+            if (record != null) {
+                try { record.stop() } catch (_: Exception) {}
+            }
+        }
+
         try {
             job?.join()
         } catch (_: Exception) {
@@ -179,10 +187,6 @@ class FeedbackRecorder(
 
         withContext(Dispatchers.IO) {
             if (record != null) {
-                try {
-                    record.stop()
-                } catch (_: Exception) {
-                }
                 val buf = ByteArray(recordBufferSize.coerceAtLeast(1))
                 while (true) {
                     val readBytes = try {
@@ -533,6 +537,15 @@ class FeedbackRecorder(
                     .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH)
                     .build()
             )
+            mp.setOnPreparedListener { player ->
+                try {
+                    player.start()
+                } catch (_: Exception) {
+                    if (feedbackPlayer === player) feedbackPlayer = null
+                    try { player.release() } catch (_: Exception) {}
+                    finishOnce()
+                }
+            }
             mp.setOnCompletionListener { player ->
                 if (feedbackPlayer === player) feedbackPlayer = null
                 try {
@@ -550,8 +563,7 @@ class FeedbackRecorder(
                 finishOnce()
                 true
             }
-            mp.prepare()
-            mp.start()
+            mp.prepareAsync()
         } catch (_: Exception) {
             if (feedbackPlayer === mp) feedbackPlayer = null
             try {

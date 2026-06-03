@@ -41,6 +41,9 @@ import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.tween
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -72,6 +75,7 @@ import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.Icon
 import com.mrnoh99.numbercount.GameViewModel
 import com.mrnoh99.numbercount.R
+import com.mrnoh99.numbercount.audio.AudioController
 import com.mrnoh99.numbercount.numColors
 import com.mrnoh99.numbercount.AppLanguage
 import com.mrnoh99.numbercount.ItemCategory
@@ -96,9 +100,9 @@ fun NumberCountApp(context: Context) {
         )
     }
 
-    // Audio prefs keys must match AudioController.
-    val bgmEnabledKey = "bgmEnabled"
-    val bgmVolumeKey = "bgmVolume"
+    // Audio prefs keys sourced from AudioController to avoid duplication.
+    val bgmEnabledKey = AudioController.BGM_ENABLED_KEY
+    val bgmVolumeKey = AudioController.BGM_VOLUME_KEY
     var bgmEnabled by remember { mutableStateOf(prefs.getBoolean(bgmEnabledKey, true)) }
     var bgmVolume by remember { mutableStateOf(prefs.getFloat(bgmVolumeKey, 0.12f)) }
 
@@ -437,12 +441,21 @@ private fun obtainVibrator(context: Context): Vibrator? =
  */
 private fun vibrateForResult(context: Context, correct: Boolean) {
     val vibrator = obtainVibrator(context)?.takeIf { it.hasVibrator() } ?: return
-    val effect = if (correct) {
-        VibrationEffect.createWaveform(longArrayOf(0, 40, 80, 40), -1)
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+        val effect = if (correct) {
+            VibrationEffect.createWaveform(longArrayOf(0, 40, 80, 40), -1)
+        } else {
+            VibrationEffect.createOneShot(220, VibrationEffect.DEFAULT_AMPLITUDE)
+        }
+        vibrator.vibrate(effect)
     } else {
-        VibrationEffect.createOneShot(220, VibrationEffect.DEFAULT_AMPLITUDE)
+        @Suppress("DEPRECATION")
+        if (correct) {
+            vibrator.vibrate(longArrayOf(0, 40, 80, 40), -1)
+        } else {
+            vibrator.vibrate(220)
+        }
     }
-    vibrator.vibrate(effect)
 }
 
 /**
@@ -623,6 +636,7 @@ private fun TopBar(
                     fillWidth = portraitLayout,
                     onSetMode = onSetMode,
                 )
+                ScoreStars(score, starSize = starSize, rowHeight = starRowH)
             }
         } else if (!portraitLayout) {
             // Landscape: difficulty → mode → stars → settings (left to right)
@@ -651,6 +665,7 @@ private fun TopBar(
                     onSetMode = onSetMode,
                 )
                 Spacer(modifier = Modifier.weight(1f))
+                ScoreStars(score, starSize = starSize, rowHeight = starRowH)
                 SettingsGear(
                     appLanguage,
                     iconSize = gearSize,
@@ -1140,12 +1155,26 @@ private fun RowScope.OptionCell(
         else -> 58.sp
     }
 
+    val shakeOffset = remember { Animatable(0f) }
+    LaunchedEffect(shaking) {
+        if (shaking) {
+            repeat(3) { i ->
+                shakeOffset.animateTo(
+                    if (i % 2 == 0) 8f else -8f,
+                    animationSpec = tween(durationMillis = 80, easing = LinearEasing),
+                )
+            }
+            shakeOffset.animateTo(0f, animationSpec = tween(durationMillis = 80))
+        } else {
+            shakeOffset.snapTo(0f)
+        }
+    }
     val haptic = LocalHapticFeedback.current
     Box(
         modifier = Modifier
             .weight(1f)
             .height(height)
-            .offset(x = if (shaking) 8.dp else 0.dp)
+            .offset(x = shakeOffset.value.dp)
             .shadow(elevation = 8.dp, shape = shape, clip = false)
             .background(bg, shape)
             .border(borderWidth, borderColor, shape)
