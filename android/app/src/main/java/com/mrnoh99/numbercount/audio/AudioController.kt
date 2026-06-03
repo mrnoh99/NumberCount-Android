@@ -65,6 +65,9 @@ class AudioController(
     private var bgmPrepared = false
     @Volatile
     private var bgmShouldPlay = false
+    // release() 이후에는 ensureBgmPlayer()가 새 플레이어를 만들지 않도록 막는 플래그.
+    @Volatile
+    private var released = false
     private var soundPool: SoundPool? = null
     private var correctChimeSoundId: Int = 0
     private var correctChimeLoaded = false
@@ -172,6 +175,7 @@ class AudioController(
     }
 
     private fun ensureBgmPlayer(): MediaPlayer? {
+        if (released) return null
         val existing = bgmPlayer
         if (existing != null) return existing
         val created = createBgmPlayer()
@@ -253,6 +257,7 @@ class AudioController(
     }
 
     fun release() {
+        released = true
         stopTts()
         try {
             tts.shutdown()
@@ -311,6 +316,7 @@ class AudioController(
                         pendingUtteranceId = null
                         pendingCont = null
                     }
+                    try { tts.stop() } catch (_: Exception) {}
                     cont.resumeWithException(IllegalStateException("TTS speak failed"))
                 }
 

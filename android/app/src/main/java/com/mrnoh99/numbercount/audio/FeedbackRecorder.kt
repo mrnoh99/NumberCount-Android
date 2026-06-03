@@ -24,6 +24,7 @@ import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -184,7 +185,8 @@ class FeedbackRecorder(
         } catch (_: Exception) {
         }
 
-        withContext(Dispatchers.IO) {
+        // NonCancellable: 스코프가 취소되더라도 AudioRecord를 반드시 release해 마이크를 해제한다.
+        withContext(Dispatchers.IO + NonCancellable) {
             if (record != null) {
                 val buf = ByteArray(recordBufferSize.coerceAtLeast(1))
                 while (true) {
@@ -241,8 +243,12 @@ class FeedbackRecorder(
         recordJob = null
         audioRecord = null
         job?.cancel()
-        try { record?.stop() } catch (_: Exception) {}
-        try { record?.release() } catch (_: Exception) {}
+        // AudioRecord.stop()/release()는 짧게 블로킹될 수 있으므로
+        // 호출 스레드(메인 또는 컴포지션)를 막지 않도록 IO 스레드에서 실행한다.
+        CoroutineScope(Dispatchers.IO).launch {
+            try { record?.stop() } catch (_: Exception) {}
+            try { record?.release() } catch (_: Exception) {}
+        }
         audioController.resumeBgm()
     }
 
@@ -550,19 +556,21 @@ class FeedbackRecorder(
                 }
             }
             mp.setOnCompletionListener { player ->
-                if (feedbackPlayer === player) feedbackPlayer = null
-                try {
-                    player.release()
-                } catch (_: Exception) {
+                if (feedbackPlayer !== player) {
+                    try { player.release() } catch (_: Exception) {}
+                    return@setOnCompletionListener
                 }
+                feedbackPlayer = null
+                try { player.release() } catch (_: Exception) {}
                 finishOnce()
             }
             mp.setOnErrorListener { player, _, _ ->
-                if (feedbackPlayer === player) feedbackPlayer = null
-                try {
-                    player.release()
-                } catch (_: Exception) {
+                if (feedbackPlayer !== player) {
+                    try { player.release() } catch (_: Exception) {}
+                    return@setOnErrorListener true
                 }
+                feedbackPlayer = null
+                try { player.release() } catch (_: Exception) {}
                 finishOnce()
                 true
             }

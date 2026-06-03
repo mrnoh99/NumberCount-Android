@@ -206,8 +206,10 @@ data class GameState(
             (1..safeMax).filter { it !in opts }.shuffled(Random)
                 .take(4 - opts.size)
                 .forEach { opts.add(it) }
-            // Fallback pad for safeMax < 4 (not reachable from current UI but prevents crash).
-            while (opts.size < 4) { opts.add(target) }
+            // Fallback for safeMax < 4: pad with distinct values above safeMax so no two
+            // buttons show the same answer (target 중복 방지).
+            var padValue = safeMax + 1
+            while (opts.size < 4) opts.add(padValue++)
             opts.shuffle(Random)
 
             val theme = (themePool.ifEmpty { ThemeCatalog.all }).random(Random)

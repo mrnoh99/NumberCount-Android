@@ -194,6 +194,7 @@ class GameViewModel(
         feedbackJob = null
         shakingJob?.cancel()
         shakingJob = null
+        feedbackRecorder.stopPlayback()
         feedbackInteractive = false
         showCelebration = false
         val newScore = pendingCorrectScore ?: (game.score + 1)
